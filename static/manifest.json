@@ -1,0 +1,17 @@
+{
+  "name": "ST MICHEL - St Michel de l'Attalaye",
+  "short_name": "ST MICHEL",
+  "description": "Guide ofisyèl pou festival 1-11 Me nan St Michel de l'Attalaye. Istwa, match, galeri, ak paspò dijital.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F5F5F5",
+  "theme_color": "#00209F",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ],
+  "lang": "ht",
+  "dir": "ltr"
+}

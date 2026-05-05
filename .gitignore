@@ -1,0 +1,118 @@
+node_modules
+
+# Output
+.output
+.vercel
+.netlify
+.wrangler
+/.svelte-kit
+/build
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.*
+!.env.example
+!.env.test
+
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+# Playwright
+test-results
+# Paraglide
+src/lib/paraglide
+project.inlang/cache/
+# SQLite
+*.db
+
+*storybook.log
+storybook-static
+
+
+# Dependencies
+node_modules
+
+# Output / build directories
+.output
+.vercel
+.netlify
+.wrangler
+/.svelte-kit
+/build
+
+# Cloudflare worker artifacts
+.wrangler/state
+*.wrangler.state
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment variables (committed .env.example and .env.test are exceptions)
+.env
+.env.*
+!.env.example
+!.env.test
+
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# Playwright
+test-results
+playwright-report/
+*.playwright/
+
+# Paraglide
+src/lib/paraglide
+project.inlang/cache/
+
+# SQLite
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+
+# Storybook
+*storybook.log
+storybook-static
+
+# Testing / coverage
+coverage/
+.nyc_output/
+
+# IDE (common ones)
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-workspace
+*.sublime-project
+
+# Misc
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Drizzle
+drizzle/
+
+# Tailwind
+*.css.map
+
+# Local database
+local.db
+local.db-shm
+local.db-wal
+
+#test files
+*.test.ts
+*.test.js
+tests/

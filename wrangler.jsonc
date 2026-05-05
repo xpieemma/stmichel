@@ -1,0 +1,41 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "learning",
+	"compatibility_date": "2026-04-25",
+	"vars": {
+		"ADMIN_DEMO_ENABLED": "1"
+	},
+	"compatibility_flags": [
+		"nodejs_als"
+	],
+	"main": ".svelte-kit/cloudflare/_worker.js",
+	"assets": {
+		"binding": "ASSETS",
+		"directory": ".svelte-kit/cloudflare"
+	},
+	"workers_dev": true,
+	"preview_urls": true,
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "festival-db",
+			"database_id": "1a2de0d0-3c58-4b6a-ab42-ef3370ca2c74",
+			"preview_database_id": "local"
+		}
+	],
+	"kv_namespaces": [
+		{
+			"binding": "KV",
+			"id": "814c0e9cfa854ceeab833d5c8b0071ff",
+			"preview_id": "local"
+		}
+	]
+,
+"r2_buckets": [
+    {
+      "binding": "R2",
+      "bucket_name": "st-michel-bucket",
+      "preview_bucket_name": "st-michel-bucket-preview"
+    }
+  ]
+}

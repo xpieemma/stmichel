@@ -1,0 +1,20 @@
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+  Cross-Origin-Resource-Policy: same-origin
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+
+# Long-cache hashed assets
+/_app/immutable/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Service worker should never be cached
+/service-worker.js
+  Cache-Control: no-cache
+
+# Manifest
+/manifest.json
+  Content-Type: application/manifest+json
+  Cache-Control: public, max-age=86400
