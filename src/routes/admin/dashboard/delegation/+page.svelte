@@ -3,6 +3,7 @@
   import { generateDelegationToken } from '$lib/auth/offline-tokens';
   import { renderQRCode } from '$lib/components/qrcode';
   import { getDeviceId } from '$lib/db/sync';  // we already have this helper
+  import { resolve } from '$app/paths';
 
   let password = $state('');
   let qrSvg = $state('');
@@ -10,7 +11,7 @@
   let loading = $state(false);
 
   // Store the password hash temporarily for signing – cleared on destroy
-  let passwordHash: string | null = null;
+  // let passwordHash: string | null = null;
 
   async function handleGenerate() {
     if (!password) {
@@ -47,8 +48,8 @@
 
       const token = await generateDelegationToken(password, username, getDeviceId());
       qrSvg = renderQRCode(`https://stmichel.ht/admin/onboard?token=${encodeURIComponent(token)}`);
-    } catch (e: any) {
-      error = e.message || 'Failed to generate QR';
+    } catch (e: unknown) {
+      error = (e as Error).message || 'Failed to generate QR';
     } finally {
       password = '';  // clear from memory
       loading = false;
@@ -58,12 +59,16 @@
   onDestroy(() => {
     password = '';
   });
+
+  function injectQR(node: HTMLElement, svgContent: string) {
+    node.innerHTML = svgContent;
+  }
 </script>
 
 <svelte:head><title>Delegate Access | Admin</title></svelte:head>
 
 <div class="p-4 max-w-md mx-auto pb-20">
-  <a href="/admin/dashboard" class="text-sm text-text-muted hover:underline">← Dashboard</a>
+  <a href={resolve('/admin/dashboard')} class="text-sm text-text-muted hover:underline">← Dashboard</a>
   <h1 class="text-2xl font-bold mt-2 mb-6">👥 Delegate Admin Access</h1>
   <p class="text-sm text-text-secondary mb-4">
     Generate a QR code that another person can scan to become an administrator – no internet required.
@@ -91,8 +96,7 @@
   {#if qrSvg}
     <div class="mt-6">
       <h2 class="text-lg font-semibold mb-2">Delegation QR Code</h2>
-      <div class="bg-white p-4 rounded-2xl border inline-block">
-        {@html qrSvg}
+      <div class="bg-white p-4 rounded-2xl border inline-block" use:injectQR={qrSvg}>
       </div>
       <p class="text-xs text-text-muted mt-2">
         Have the new admin scan this QR code with their device’s camera app. They will be taken to the onboarding page.
