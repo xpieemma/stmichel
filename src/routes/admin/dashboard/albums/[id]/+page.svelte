@@ -7,6 +7,11 @@
   import { eq } from 'drizzle-orm';
   import { syncToServer } from '$lib/db/sync';
   import { resolve } from '$app/paths';
+  import { compressImage } from '$lib/media/compress';
+
+
+const MAX_ORIGINAL_SIZE = 10 * 1024 * 1024; // 10 MB limit before compression
+const ALLOWED_TYPES = ['image/jpeg', 'image/webp'];
 
   let id = $page.params.id;
   let isNew = $derived(id === 'new');
@@ -28,6 +33,17 @@
     const file = target.files?.[0];
     if (!file) return;
 
+    if (!ALLOWED_TYPES.includes(file.type)) {
+    alert('Sèlman imaj JPG ak WebP yo aksepte. Pa gen PNG oswa lòt fòma.');
+    target.value = '';
+    return;
+  }
+
+  if (file.size > MAX_ORIGINAL_SIZE) {
+    alert('Fichye a twò gwo. Diminye gwosè a avan ou telechaje.');
+    target.value = '';
+    return;
+  }
     // Client-side validation
     if (!['image/jpeg', 'image/webp'].includes(file.type)) {
       alert('Tanpri chwazi yon imaj JPG oswa WebP (Pa gen PNG).');
@@ -37,8 +53,13 @@
 
     uploading = true;
     try {
+
+      // 1. Compress the image before uploading
+    const compressedBlob = await compressImage(file);
+    // 2. Create a new File from the Blob with original name
+    const compressedFile = new File([compressedBlob], file.name, { type: 'image/jpeg' });
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', compressedFile);
 
       // Send to our new R2 endpoint
       const r = await fetch('/api/admin/upload', { method: 'POST', body: formData });
