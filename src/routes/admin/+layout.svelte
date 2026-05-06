@@ -8,12 +8,18 @@ import {browser} from '$app/environment';
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import type { Snippet } from 'svelte';
+  import { listenBroadcasts, type BroadcastMessage } from '$lib/auth/broadcast';
+  import { stopHeartbeat } from '$lib/auth/heartbeat';
+import { clearAuditKey } from '$lib/auth/audit';
+
 
   let { children }: { children: Snippet } = $props();
 
   let decoy = $state(false);
   let unsub: (() => void) | undefined;
 
+
+  let unsubBroadcast: (() => void) | undefined;
   onMount(() => {
     unsub = currentAdmin.subscribe((session) => {
       decoy = session?.role === 'decoy';
@@ -28,6 +34,24 @@ import {browser} from '$app/environment';
     if (browser && !$currentAdmin?.active) {
       goto(resolve('/admin/login'));
     }
+
+   unsubBroadcast = listenBroadcasts((msg: BroadcastMessage) => {
+  if (msg.type === 'LOGOUT') {
+    stopHeartbeat();
+    clearAuditKey();
+    goto(resolve('/admin/login'));
+  } else if (msg.type === 'SESSION_LOCK') {
+    // Only lock if not already locked
+    if (!get(adminLocked).locked) {
+      adminLocked.set({ locked: true, username: msg.username });
+    }
+  } else if (msg.type === 'SESSION_UNLOCK') {
+    adminLocked.set({ locked: false, username: msg.username });
+  } else if (msg.type === 'DECOY_ACTIVE') {
+    currentAdmin.set({ username: msg.username, role: 'decoy', active: true });
+  }
+});
+
   });
 
   onDestroy(() => {
@@ -36,6 +60,8 @@ import {browser} from '$app/environment';
     if (browser) {
       document.removeEventListener('click', handleDecoyClick, true);
     }
+
+    if (browser && unsubBroadcast) unsubBroadcast();
   });
 
   function handleDecoyClick(e: MouseEvent) {
@@ -46,6 +72,7 @@ import {browser} from '$app/environment';
       fakeToast('Mod pa pèmè nan mòd lekti sèlman');
     }
   }
+  
 </script>
 
 {#if decoy}

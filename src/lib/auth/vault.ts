@@ -15,7 +15,9 @@ async function ensureVaultTable() {
         master_hash TEXT NOT NULL,
         decoy_hash TEXT,
         totp_secret TEXT,
-        local_pin TEXT
+        local_pin TEXT,
+        recovery_hint_encrypted TEXT,
+        recovery_requested_at INTEGER
       )
     `);
   }
@@ -130,4 +132,50 @@ export async function setAdminPin(username: string, pin: string) {
   await db.run(
     sql`INSERT OR REPLACE INTO auth_vault (username, master_hash, local_pin) VALUES (${username}, COALESCE((SELECT master_hash FROM auth_vault WHERE username=${username}), ''), ${pin})`
   );
+}
+
+export async function setRecoveryHint(username: string, encryptedBlob: string) {
+  await ensureVaultTable();
+  const db = await getLocalDB();
+  if (!db) return;
+  await ensureColumn('recovery_hint_encrypted', 'TEXT', db);
+  await ensureColumn('recovery_requested_at', 'INTEGER', db);
+
+  await db.run(
+    sql`UPDATE auth_vault SET recovery_hint_encrypted = ${encryptedBlob}, recovery_requested_at = NULL WHERE username = ${username}`
+  );
+}
+
+export async function getRecoveryHintBlob(username: string): Promise<string | null> {
+  const db = await getLocalDB();
+  if (!db) return null;
+  try {
+    const row = await db.get<{ recovery_hint_encrypted: string | null }>(
+      sql`SELECT recovery_hint_encrypted FROM auth_vault WHERE username = ${username}`
+    );
+    return row?.recovery_hint_encrypted ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function setRecoveryRequestedAt(username: string, timestamp: number) {
+  const db = await getLocalDB();
+  if (!db) return;
+  await db.run(
+    sql`UPDATE auth_vault SET recovery_requested_at = ${timestamp} WHERE username = ${username}`
+  );
+}
+
+export async function getRecoveryRequestedAt(username: string): Promise<number | null> {
+  const db = await getLocalDB();
+  if (!db) return null;
+  try {
+    const row = await db.get<{ recovery_requested_at: number | null }>(
+      sql`SELECT recovery_requested_at FROM auth_vault WHERE username = ${username}`
+    );
+    return row?.recovery_requested_at ?? null;
+  } catch {
+    return null;
+  }
 }

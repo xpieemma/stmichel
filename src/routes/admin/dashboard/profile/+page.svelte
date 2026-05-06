@@ -4,6 +4,9 @@
   import { setDecoyPassword, setAdminPin } from '$lib/auth/vault';
   import { fakeToast } from '$lib/stores/toasts';
 	import { startHeartbeat } from '$lib/auth/heartbeat';
+  import { setRecoveryHint } from '$lib/auth/vault';
+  import {encryptHint} from '$lib/auth/recovery';
+
 
 
   // --- Decoy State ---
@@ -15,6 +18,12 @@
   let pin = $state('');
   let loadingPin = $state(false);
   let pinError = $state('');
+
+  //
+ let recoveryHint = $state('');
+  let recoveryPin = $state('');
+  let loadingRecovery = $state(false);
+  let recoveryError = $state('');
 
   async function handleSetDecoy(e: SubmitEvent) {
     e.preventDefault();
@@ -64,6 +73,40 @@
       pinError = (err as Error).message;
     } finally {
       loadingPin = false;
+    }
+  }
+
+  
+  async function handleSetRecovery(e: SubmitEvent) {
+    e.preventDefault();
+    const session = get(currentAdmin);
+    
+    if (!session?.username) {
+      recoveryError = 'Pa gen itilizatè aktif';
+      return;
+    }
+    if (!recoveryHint || !recoveryPin) {
+      recoveryError = 'Antre endis ak PIN rekiperasyon an';
+      return;
+    }
+    if (recoveryPin.length < 4) {
+      recoveryError = 'PIN rekiperasyon dwe genyen omwen 4 karaktè';
+      return;
+    }
+
+    loadingRecovery = true;
+    recoveryError = '';
+    
+    try {
+      const encryptedBlob = await encryptHint(recoveryHint, recoveryPin);
+      await setRecoveryHint(session.username, encryptedBlob);
+      fakeToast('Endis rekiperasyon anrejistre avèk siksè');
+      recoveryHint = '';
+      recoveryPin = '';
+    } catch (err) {
+      recoveryError = (err as Error).message;
+    } finally {
+      loadingRecovery = false;
     }
   }
 </script>
@@ -140,4 +183,56 @@
       </button>
     </form>
   </div>
+  <div class="bg-card-white rounded-3xl p-6 border border-border-light shadow-sm">
+  <h2 class="text-lg font-semibold mb-2">🔑 Endis Rekiperasyon Modpas</h2>
+  <p class="text-sm text-text-secondary mb-4">
+    Sere yon ti endis pou ede w sonje modpas ou. Endis la ap ankripte epi li p ap vizib san yon PIN espesyal epi yon tan datant 5 minit.
+  </p>
+
+  <form onsubmit={handleSetRecovery} class="space-y-4">
+    <div>
+      <label class="block mb-1 font-medium text-sm" for="recovery-hint-input">
+        Endis Rekiperasyon
+      </label>
+      <input 
+        id="recovery-hint-input"
+        type="text" 
+        bind:value={recoveryHint} 
+        required
+        disabled={loadingRecovery}
+        placeholder="eg. Non chen mwen + ane fèt mwen"
+        class="w-full p-3 border border-border-light rounded-xl bg-smoke-white focus:ring-2 focus:ring-haiti-blue focus:outline-none" 
+      />
+    </div>
+    <div>
+      <label class="block mb-1 font-medium text-sm" for="recovery-pin-input">
+        PIN Rekiperasyon
+      </label>
+      <input 
+        id="recovery-pin-input"
+        type="password" 
+        inputmode="numeric" 
+        maxlength="6" 
+        bind:value={recoveryPin}
+        required
+        disabled={loadingRecovery}
+        placeholder="Kreye yon PIN 4-6 chif"
+        class="w-full p-3 border border-border-light rounded-xl bg-smoke-white focus:ring-2 focus:ring-haiti-blue focus:outline-none" 
+      />
+      <p class="text-xs text-text-muted mt-1">W ap bezwen PIN sa a lè w vle wè endis la.</p>
+    </div>
+
+    {#if recoveryError}
+      <p class="text-haiti-red text-xs">{recoveryError}</p>
+    {/if}
+
+    <button 
+      type="submit" 
+      disabled={loadingRecovery}
+      class="bg-haiti-blue text-white px-6 py-3 rounded-full font-medium text-sm disabled:opacity-50 transition-opacity"
+    >
+      {loadingRecovery ? 'Ap chifreman...' : 'Sove Endis Rekiperasyon'}
+    </button>
+  </form>
+</div>
 </div>

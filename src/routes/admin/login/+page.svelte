@@ -1,17 +1,18 @@
 <script lang="ts">
-  import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { startRegistration, startAuthentication } from '@simplewebauthn/browser';
   import type {
     PublicKeyCredentialCreationOptionsJSON,
     PublicKeyCredentialRequestOptionsJSON
   } from '@simplewebauthn/browser';
+  import { sendBroadcast } from '$lib/auth/broadcast';
   
   import { hashPassword, FIXED_SALT_U8, FIXED_SALT_B64 } from '$lib/auth/crypto';
   import { checkLocalLogin, storeMasterHash, getTotpSecret } from '$lib/auth/vault';
   import { verifyTOTP } from '$lib/auth/totp';
   import { login } from '$lib/auth/session';
   import { startHeartbeat } from '$lib/auth/heartbeat'; // ✅ Imported startHeartbeat
+  import { goto } from '$app/navigation';
 
   // --- UI State ---
   let loading = $state(false);
@@ -145,6 +146,7 @@
           ? '/admin/api/password/register'
           : '/admin/api/password/login';
 
+      sendBroadcast({ type: 'DECOY_ACTIVE', username });
       const resp = await fetch(endpoint, {
         credentials: 'include',
         method: 'POST',
@@ -154,6 +156,7 @@
           password_hash: hashed,
           client_salt: FIXED_SALT_B64
         })
+
       });
 
       const res: unknown = await resp.json().catch(() => ({}));
@@ -365,6 +368,7 @@
           <div class="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-haiti-red text-sm">
             {error}
           </div>
+          <a href={resolve("/admin/recovery")} class="text-sm text-haiti-blue underline mt-2 block text-center">Bliye Modpas?</a>
         {/if}
 
         {#if mode === 'register' && method === 'password'}

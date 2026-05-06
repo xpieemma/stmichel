@@ -1,4 +1,5 @@
 import { writable, get } from 'svelte/store';
+import { sendBroadcast } from './broadcast';
 
 /**
  * Stores the locked state and the username of the current admin.
@@ -50,6 +51,7 @@ function checkInactivity() {
   if (Date.now() - lastActivity > INACTIVITY_LIMIT) {
     adminLocked.set({ locked: true, username: get(adminLocked).username });
     stopActivityListeners();
+    sendBroadcast({ type: 'SESSION_LOCK', username: get(adminLocked).username ?? 'unknown' });
     return;
   }
   rafId = requestAnimationFrame(checkInactivity);
@@ -74,6 +76,7 @@ export function stopHeartbeat() {
   cancelAnimationFrame(rafId);
   stopActivityListeners();
   adminLocked.set({ locked: false, username: null });
+  sendBroadcast({ type: 'LOGOUT' });
 }
 
 /**
@@ -84,4 +87,5 @@ export function unlockSession(username: string) {
   lastActivity = Date.now();
   startActivityListeners();
   rafId = requestAnimationFrame(checkInactivity);
+  sendBroadcast({ type: 'SESSION_UNLOCK', username });
 }
