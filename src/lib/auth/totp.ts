@@ -1,5 +1,5 @@
 /**
- * Zero‑dependency RFC 6238 TOTP generator / verifier.
+ * Zero‑dependency RFC6238 TOTP generator / verifier.
  * Uses Web Crypto API for HMAC‑SHA‑1.
  */
 
@@ -46,9 +46,10 @@ const HMAC_ALGORITHM = { name: 'HMAC', hash: 'SHA-1' };
  */
 async function totpCode(secret: string, timeCounter: number): Promise<string> {
   const keyBytes = base32Decode(secret);
-  
+
+
   const key = await crypto.subtle.importKey(
-    'raw', keyBytes, HMAC_ALGORITHM, false, ['sign']
+    'raw', keyBytes.buffer as ArrayBuffer, HMAC_ALGORITHM, false, ['sign']
   );
 
   // Convert time counter to big‑endian 8‑byte buffer
