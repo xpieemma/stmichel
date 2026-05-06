@@ -1,15 +1,32 @@
+
+
+
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
+  import { compressImage } from '$lib/media/compress';
+  import { cropImageToCanvas, canvasToJpegBlob } from '$lib/media/crop';
 
-  const id = $page.params.id;
-  const isNew = id === 'new';
+  const ASPECT = 16 / 9;
 
-  let loading = $state(!isNew);
+  // Routing State
+  let id = $derived($page.params.id);
+  let isNew = $derived(id === 'new');
+  let loading = $state(true);
   let saving = $state(false);
   let error = $state('');
+
+  // Crop State
+  let cropFile = $state<File | null>(null);
+  let cropImg = $state<HTMLImageElement | null>(null);
+  let cropScale = $state(1);
+  let cropX = $state(0); 
+  let cropY = $state(0);
+  let cropping = $state(false);
+  let cropCanvas = $state<HTMLCanvasElement | null>(null);
+  let lastX = 0, lastY = 0;
 
   let form = $state({
     id: 0,
@@ -25,24 +42,161 @@
   });
 
   onMount(async () => {
-    if (!isNew) {
-      try {
-        const r = await fetch('/api/admin/events');
-        if (!r.ok) throw new Error('Failed to load');
-        const data = await r.json();
-        const ev = data.items.find((e: any) => e.id === parseInt(id!, 10));
-        if (ev) {
-          form = { ...form, ...ev };
-        } else {
-          error = 'Evènman pa jwenn';
-        }
-      } catch (e) {
-        error = (e as Error).message;
-      } finally {
-        loading = false;
+    if (isNew) {
+      loading = false;
+      return;
+    }
+    try {
+      const r = await fetch('/api/admin/events');
+      if (!r.ok) throw new Error('Failed to load');
+      const data = await r.json();
+      const ev = data.items.find((e: any) => e.id === parseInt(id!, 10));
+      if (ev) {
+        form = { ...form, ...ev };
+      } else {
+        error = 'Evènman pa jwenn';
       }
+    } catch (e) {
+      error = (e as Error).message;
+    } finally {
+      loading = false;
     }
   });
+
+  function onFileChange(e: Event) {
+    const target = e.target as HTMLInputElement;
+    const file = target.files?.[0];
+    if (!file) return;
+    
+    if (!['image/jpeg', 'image/webp', 'image/png'].includes(file.type)) {
+      alert('Sèlman JPG, PNG, ak WebP yo aksepte.');
+      return;
+    }
+    
+    cropFile = file;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = async () => { 
+        cropImg = img;
+        cropScale = 1;
+
+        // ✅ Corrected Aspect Ratio Initial Centering
+        const w = img.width, h = img.height;
+        const imageAspect = w / h;
+        
+        let baseCropW = w, baseCropH = h;
+        if (imageAspect > ASPECT) {
+          baseCropW = h * ASPECT; // Image is wider, constrain by height
+        } else {
+          baseCropH = w / ASPECT; // Image is taller, constrain by width
+        }
+        
+        cropX = (w - baseCropW) / 2;
+        cropY = (h - baseCropH) / 2;
+        
+        cropping = true;
+        await tick(); // Wait for canvas to mount in DOM
+        drawCropCanvas();
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function drawCropCanvas() {
+    if (!cropImg || !cropCanvas) return;
+    const img = cropImg;
+    const w = img.width, h = img.height;
+    const imageAspect = w / h;
+
+    // ✅ Corrected base crop dimensions
+    let baseCropW = w, baseCropH = h;
+    if (imageAspect > ASPECT) {
+      baseCropW = h * ASPECT;
+    } else {
+      baseCropH = w / ASPECT;
+    }
+
+    // ✅ Apply scale correctly (zoom in means smaller source crop box)
+    const cropW = baseCropW / cropScale;
+    const cropH = baseCropH / cropScale;
+
+    // Clamp panning to image boundaries
+    cropX = Math.max(0, Math.min(cropX, w - cropW));
+    cropY = Math.max(0, Math.min(cropY, h - cropH));
+
+    const canvas = cropCanvas;
+    const containerWidth = canvas.parentElement!.clientWidth;
+    canvas.width = containerWidth;
+    canvas.height = containerWidth / ASPECT;
+    
+    const ctx = canvas.getContext('2d')!;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height);
+  }
+
+  // Pointer handlers for pan
+  function cropPointerDown(e: PointerEvent) {
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    lastX = e.clientX;
+    lastY = e.clientY;
+  }
+
+  function cropPointerMove(e: PointerEvent) {
+    if (e.buttons !== 1) return;
+    const dx = e.clientX - lastX;
+    const dy = e.clientY - lastY;
+    lastX = e.clientX;
+    lastY = e.clientY;
+    
+    const scaleInv = (cropImg!.width / cropScale) / cropCanvas!.offsetWidth;
+    cropX -= dx * scaleInv;
+    cropY -= dy * scaleInv;
+    drawCropCanvas();
+  }
+
+  function cropPointerUp(e: PointerEvent) {
+    (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+  }
+
+  function cropWheel(e: WheelEvent) {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? 0.95 : 1.05;
+    // ✅ Clamp zoom between 1x (fit) and 4x (zoom)
+    cropScale = Math.max(1, Math.min(4, cropScale * delta));
+    drawCropCanvas();
+  }
+
+  async function confirmCrop() {
+    if (!cropImg || !cropCanvas) return;
+    cropping = false;
+    
+    const img = cropImg;
+    const w = img.width, h = img.height;
+    const imageAspect = w / h;
+
+    // ✅ Re-apply the exact same corrected math used in draw function
+    let baseCropW = w, baseCropH = h;
+    if (imageAspect > ASPECT) {
+      baseCropW = h * ASPECT;
+    } else {
+      baseCropH = w / ASPECT;
+    }
+
+    const cropW = baseCropW / cropScale;
+    const cropH = baseCropH / cropScale;
+
+    const sx = Math.max(0, Math.min(cropX, w - cropW));
+    const sy = Math.max(0, Math.min(cropY, h - cropH));
+
+    const croppedCanvas = cropImageToCanvas(img, sx, sy, cropW, cropH);
+    const croppedBlob = await canvasToJpegBlob(croppedCanvas, 0.8);
+    const crushedBlob = await compressImage(new File([croppedBlob], cropFile!.name, { type: 'image/jpeg' }));
+    
+    form.image_url = URL.createObjectURL(crushedBlob); 
+  }
 
   async function save() {
     if (!form.title.trim()) { error = 'Tit la obligatwa'; return; }
@@ -50,26 +204,26 @@
     error = '';
     try {
       const method = isNew ? 'POST' : 'PUT';
-      // const body = isNew ? { ...form } : { ...form, id: parseInt(id) };
-
       const payload = {
         id: isNew ? undefined : parseInt(id!, 10),
         title: form.title,
         description: form.description,
         location: form.location,
-        date: form.event_date,       // translated from event_date
-        time: form.event_time,       // translated from event_time
-        imageUrl: form.image_url,    // translated from image_url
-        type: form.category,         // translated from category
+        date: form.event_date,
+        time: form.event_time,
+        imageUrl: form.image_url,
+        type: form.category,
         published: form.published,
-        lat: null, // Placeholder for map coordinates
-        lng: null  // Placeholder for map coordinates
+        lat: null, 
+        lng: null 
       };
+      
       const r = await fetch('/api/admin/events', {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
+      
       if (!r.ok) {
         const b = await r.json().catch(() => ({}));
         throw new Error(b.error || 'Echwe sove');
@@ -131,12 +285,13 @@
       </label>
 
       <label class="block">
-        <span class="font-medium">URL Imaj</span>
-        <input type="url" bind:value={form.image_url} placeholder="https://..."
+        <span class="font-medium">Voye Imaj (16:9)</span>
+        <input type="file" accept="image/jpeg, image/webp, image/png" onchange={onFileChange}
           class="w-full p-3 border border-border-light rounded-xl bg-smoke-white mt-1" />
       </label>
-      {#if form.image_url}
-        <img src={form.image_url} alt="Preview" class="w-24 h-24 object-cover rounded-xl border" />
+
+      {#if form.image_url && !cropping}
+        <img src={form.image_url} alt="Preview" class="w-full aspect-video object-cover rounded-xl border" />
       {/if}
 
       <div class="grid grid-cols-2 gap-4">
@@ -154,17 +309,40 @@
         </label>
         <div class="space-y-3 pt-7">
           <label class="flex items-center gap-2">
-            <input type="checkbox" bind:checked={() => form.published, (v) => form.published = v ? 1 : 0}
+            <input type="checkbox" 
+              checked={form.published === 1} 
+              onchange={(e) => form.published = e.currentTarget.checked ? 1 : 0}
               class="w-5 h-5 rounded" />
             <span class="font-medium">Pibliye</span>
           </label>
           <label class="flex items-center gap-2">
-            <input type="checkbox" bind:checked={() => form.featured, (v) => form.featured = v ? 1 : 0}
+            <input type="checkbox" 
+              checked={form.featured === 1} 
+              onchange={(e) => form.featured = e.currentTarget.checked ? 1 : 0}
               class="w-5 h-5 rounded" />
             <span class="font-medium">Featured ⭐</span>
           </label>
         </div>
       </div>
+
+      {#if cropping && cropImg}
+        <div class="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4">
+          <div class="bg-card-white rounded-2xl p-4 w-full max-w-lg">
+            <h3 class="font-semibold mb-2">Kadraj imaj (16:9)</h3>
+            <div class="relative overflow-hidden border rounded-xl bg-gray-100"
+                 style="width:100%; aspect-ratio:{ASPECT}; touch-action:none; user-select:none;"
+                 onpointerdown={cropPointerDown} onpointermove={cropPointerMove}
+                 onpointerup={cropPointerUp} onpointercancel={cropPointerUp} onpointerleave={cropPointerUp} onwheel={cropWheel}>
+              <canvas bind:this={cropCanvas} width="0" height="0" class="absolute top-0 left-0 w-full h-full"></canvas>
+            </div>
+            <p class="text-xs text-text-muted mt-1">Sèvi ak touch/sourit pou deplase. Woulet pou zoom.</p>
+            <div class="flex gap-3 mt-3">
+              <button type="button" onclick={confirmCrop} class="bg-haiti-blue text-white px-4 py-2 rounded-full">Konfime</button>
+              <button type="button" onclick={() => cropping = false} class="border px-4 py-2 rounded-full">Anile</button>
+            </div>
+          </div>
+        </div>
+      {/if}
 
       <div class="flex gap-3 pt-4">
         <button type="submit" disabled={saving}
