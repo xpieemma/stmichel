@@ -2,6 +2,8 @@
  * Adaptive image compression using the Network Information API.
  * Falls back to a sensible default when the API is unavailable.
  */
+import { getOrientation } from './exif';
+
 
 type EffectiveConnectionType = 'slow-2g' | '2g' | '3g' | '4g';
 
@@ -35,37 +37,114 @@ export async function compressImage(
 ): Promise<Blob> {
   const quality = qualityOverride ?? getQualityFromNetwork();
 
+  const orientation = await getOrientation(file);
   // Load the image into an off-screen canvas
   const imageBitmap = await createImageBitmap(file);
   const { width, height } = imageBitmap;
 
-  // Calculate new dimensions if the image exceeds maxDimension
-  let newWidth = width;
-  let newHeight = height;
-  if (width > maxDimension || height > maxDimension) {
-    const ratio = Math.min(maxDimension / width, maxDimension / height);
-    newWidth = Math.round(width * ratio);
-    newHeight = Math.round(height * ratio);
+ // Determine canvas size based on orientation
+  let canvasWidth = width;
+  let canvasHeight = height;
+  // Swapped dimensions for 90° or 270° rotations
+  if (orientation >= 5 && orientation <= 8) {
+    canvasWidth = height;
+    canvasHeight = width;
+  }
+
+  // Scale down if necessary
+  if (canvasWidth > maxDimension || canvasHeight > maxDimension) {
+    const ratio = Math.min(maxDimension / canvasWidth, maxDimension / canvasHeight);
+    canvasWidth = Math.round(canvasWidth * ratio);
+    canvasHeight = Math.round(canvasHeight * ratio);
   }
 
   const canvas = document.createElement('canvas');
-  canvas.width = newWidth;
-  canvas.height = newHeight;
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
   const ctx = canvas.getContext('2d')!;
-  ctx.drawImage(imageBitmap, 0, 0, newWidth, newHeight);
 
-  // Convert to JPEG blob
+  // Apply orientation
+  ctx.save();
+  switch (orientation) {
+    case 2: // flip horizontal
+      ctx.translate(canvasWidth, 0);
+      ctx.scale(-1, 1);
+      break;
+    case 3: // rotate 180°
+      ctx.translate(canvasWidth, canvasHeight);
+      ctx.rotate(Math.PI);
+      break;
+    case 4: // flip vertical
+      ctx.translate(0, canvasHeight);
+      ctx.scale(1, -1);
+      break;
+    case 5: // flip horizontal and rotate 90° CCW
+      ctx.rotate(0.5 * Math.PI);
+      ctx.scale(1, -1);
+      break;
+    case 6: // rotate 90° CW
+      ctx.rotate(0.5 * Math.PI);
+      ctx.translate(0, -canvasHeight);
+      break;
+    case 7: // flip horizontal and rotate 90° CW
+      ctx.rotate(0.5 * Math.PI);
+      ctx.translate(canvasWidth, -canvasHeight);
+      ctx.scale(-1, 1);
+      break;
+    case 8: // rotate 90° CCW
+      ctx.rotate(-0.5 * Math.PI);
+      ctx.translate(-canvasWidth, 0);
+      break;
+    default: // 1: normal
+      // nothing
+  }
+
+  // Draw the image (transform already applied)
+  ctx.drawImage(imageBitmap, 0, 0, width, height);
+
+  ctx.restore();
+
   return new Promise((resolve, reject) => {
     canvas.toBlob(
       (blob) => {
-        if (blob) {
-          resolve(blob);
-        } else {
-          reject(new Error('Failed to compress image'));
-        }
+        if (blob) resolve(blob);
+        else reject(new Error('Failed to compress image'));
       },
       'image/jpeg',
       quality
     );
   });
 }
+
+
+
+//   // Calculate new dimensions if the image exceeds maxDimension
+//   let newWidth = width;
+//   let newHeight = height;
+//   if (width > maxDimension || height > maxDimension) {
+//     const ratio = Math.min(maxDimension / width, maxDimension / height);
+//     newWidth = Math.round(width * ratio);
+//     newHeight = Math.round(height * ratio);
+//   }
+
+//   const canvas = document.createElement('canvas');
+//   canvas.width = newWidth;
+//   canvas.height = newHeight;
+//   const ctx = canvas.getContext('2d')!;
+//   ctx.drawImage(imageBitmap, 0, 0, newWidth, newHeight);
+
+//   // Convert to JPEG blob
+//   return new Promise((resolve, reject) => {
+//     canvas.toBlob(
+//       (blob) => {
+//         if (blob) {
+//           resolve(blob);
+//         } else {
+//           reject(new Error('Failed to compress image'));
+//         }
+//       },
+//       'image/jpeg',
+//       quality
+//     );
+//   });
+// }
