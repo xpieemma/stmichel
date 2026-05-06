@@ -1,4 +1,4 @@
- <script lang="ts">
+<script lang="ts">
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { startRegistration, startAuthentication } from '@simplewebauthn/browser';
@@ -11,6 +11,7 @@
   import { checkLocalLogin, storeMasterHash, getTotpSecret } from '$lib/auth/vault';
   import { verifyTOTP } from '$lib/auth/totp';
   import { login } from '$lib/auth/session';
+  import { startHeartbeat } from '$lib/auth/heartbeat'; // ✅ Imported startHeartbeat
 
   // --- UI State ---
   let loading = $state(false);
@@ -65,6 +66,8 @@
       });
 
       if (verifyResp.ok) {
+        login(username, 'admin'); // Ensure session state is set
+        startHeartbeat(username); // ✅ Start the inactivity timer
         goto(resolve('/admin/dashboard'));
       } else {
         const body = await verifyResp.json().catch(() => ({}));
@@ -94,6 +97,8 @@
         credentials: 'include'
       });
       if (r.ok) {
+        login('demo', 'admin'); 
+        startHeartbeat('demo'); // ✅ Start the timer for demo user too
         goto(resolve('/admin/dashboard'));
       } else {
         const body = await r.json().catch(() => ({}));
@@ -130,6 +135,7 @@
       const localRole = await checkLocalLogin(username, password);
       if (localRole === 'decoy') {
         login(username, 'decoy');
+        startHeartbeat(username); // ✅ Start inactivity timer for decoy
         goto(resolve('/admin/dashboard'));
         return;
       }
@@ -175,6 +181,7 @@
         }
 
         login(username, 'admin');
+        startHeartbeat(username); // ✅ Start inactivity timer for standard password login
         goto(resolve('/admin/dashboard'));
       } else {
         // Error handling
@@ -207,8 +214,8 @@
     try {
       const secret = await getTotpSecret(authenticatedUser);
       if (!secret) {
-        // No TOTP secret (shouldn't happen if we got here)
         login(authenticatedUser, 'admin');
+        startHeartbeat(authenticatedUser); // ✅ Fallback heartbeat trigger
         goto(resolve('/admin/dashboard'));
         return;
       }
@@ -216,6 +223,7 @@
       const valid = await verifyTOTP(secret, totpInput);
       if (valid) {
         login(authenticatedUser, 'admin');
+        startHeartbeat(authenticatedUser); // ✅ Start inactivity timer after TOTP success
         goto(resolve('/admin/dashboard'));
       } else {
         totpError = 'Kòd TOTP pa kòrèk';

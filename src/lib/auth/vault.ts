@@ -13,7 +13,9 @@ async function ensureVaultTable() {
       CREATE TABLE IF NOT EXISTS auth_vault (
         username TEXT PRIMARY KEY,
         master_hash TEXT NOT NULL,
-        decoy_hash TEXT
+        decoy_hash TEXT,
+        totp_secret TEXT,
+        local_pin TEXT
       )
     `);
   }
@@ -97,5 +99,35 @@ export async function setTotpSecret(username: string, secret: string) {
   }
   await db.run(
     sql`INSERT OR REPLACE INTO auth_vault (username, master_hash, totp_secret) VALUES (${username}, COALESCE((SELECT master_hash FROM auth_vault WHERE username=${username}), ''), ${secret})`
+  );
+}
+
+export async function getAdminPin(username: string): Promise<string | null> {
+  await ensureVaultTable();
+  const db = await getLocalDB();
+  if (!db) return null;
+  try {
+    const row = await db.get<{ local_pin: string | null }>(
+      sql`SELECT local_pin FROM auth_vault WHERE username = ${username}`
+    );
+    return row?.local_pin ?? null;
+  } catch {
+    // column missing
+    await db.run(sql`ALTER TABLE auth_vault ADD COLUMN local_pin TEXT`);
+    return null;
+  }
+}
+
+export async function setAdminPin(username: string, pin: string) {
+  await ensureVaultTable();
+  const db = await getLocalDB();
+  if (!db) return;
+  try {
+    await db.run(sql`SELECT local_pin FROM auth_vault LIMIT 0`);
+  } catch {
+    await db.run(sql`ALTER TABLE auth_vault ADD COLUMN local_pin TEXT`);
+  }
+  await db.run(
+    sql`INSERT OR REPLACE INTO auth_vault (username, master_hash, local_pin) VALUES (${username}, COALESCE((SELECT master_hash FROM auth_vault WHERE username=${username}), ''), ${pin})`
   );
 }

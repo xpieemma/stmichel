@@ -1,21 +1,21 @@
 # wrangler.toml
-name = "st-michel"
-compatibility_date = "2024-01-01"
+#name = "st-michel"
+#compatibility_date = "2024-01-01"
 
-[[d1_databases]]
-binding = "DB"
-database_name = "festival-db"
-database_id = "1a2de0d0-3c58-4b6a-ab42-ef3370ca2c74"    # required for deploy, optional for local
-preview_database_id = "local"
+#[[d1_databases]]
+#binding = "DB"
+#database_name = "festival-db"
+#database_id = "1a2de0d0-3c58-4b6a-ab42-ef3370ca2c74"    # required for deploy, optional for local
+#preview_database_id = "local"
 
 
-[[kv_namespaces]]
-binding = "KV"
-id = "814c0e9cfa854ceeab833d5c8b0071ff"                   # optional for local, but good practice
-preview_id = "local"      # optional
+#[[kv_namespaces]]
+#binding = "KV"
+#id = "814c0e9cfa854ceeab833d5c8b0071ff"                   # optional for local, but good practice
+#preview_id = "local"      # optional
 
-[[r2_buckets]]
-binding = "R2"
-bucket_name = "st-michel-bucket"
+#[[r2_buckets]]
+#binding = "R2"
+#bucket_name = "st-michel-bucket"
 
 
