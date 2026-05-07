@@ -297,6 +297,7 @@ import { events, matches, cityInfo, stamps, albums, albumPhotos, matchPhotos } f
 import { eq } from 'drizzle-orm';
 import { getPendingOperations, removeFromQueue } from './pending-sync';
 import { signAction } from '$lib/auth/audit';
+import { syncing, queued } from '$lib/stores/sync-state';
 
 // -------- Typed shapes for sync responses --------
 interface SyncEvent {
@@ -411,7 +412,7 @@ export async function syncFromServer(): Promise<void> {
   
   // Accumulate URLs during sync to hand off to the Service Worker
   const imagesToCache: string[] = [];
-
+ syncing.set(true);
   try {
     // --- 1. EVENTS SYNC ---
     const eventsRes = await fetch(`/api/events/sync?since=${lastSync}`);
@@ -537,6 +538,8 @@ export async function syncFromServer(): Promise<void> {
 
   } catch (error) {
     console.warn('[sync] pull failed; using cached data', error);
+  } finally {
+    syncing.set(false);
   }
 }
 

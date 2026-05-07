@@ -5,12 +5,14 @@ import {browser} from '$app/environment';
   import { currentAdmin } from '$lib/auth/session';
   import { fakeToast } from '$lib/stores/toasts';
   import Toast from '$lib/components/Toast.svelte';
+   import { isOnline } from '$lib/stores/network';
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import type { Snippet } from 'svelte';
   import { listenBroadcasts, type BroadcastMessage } from '$lib/auth/broadcast';
   import { stopHeartbeat } from '$lib/auth/heartbeat';
 import { clearAuditKey } from '$lib/auth/audit';
+ import { syncing, queued } from '$lib/stores/sync-state';
 
 
   let { children }: { children: Snippet } = $props();
@@ -84,7 +86,7 @@ import { clearAuditKey } from '$lib/auth/audit';
 <div class={decoy ? 'pt-10' : ''}>
   {@render children()}
 </div>
-
+<SyncIndicator online={$isOnline} syncing={$syncing} queued={$queued} />
 <Toast />
 
 <style>

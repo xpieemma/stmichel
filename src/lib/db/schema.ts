@@ -10,6 +10,7 @@ export const events = sqliteTable('events', {
   location: text('location'),
   lat: text('lat'),
   lng: text('lng'),
+  category: text('category').default('community'),
   imageUrl: text('image_url'),
   blurHash: text('blur_hash'),
   type: text('type', { enum: ['event', 'poi', 'history'] }).default('event'),

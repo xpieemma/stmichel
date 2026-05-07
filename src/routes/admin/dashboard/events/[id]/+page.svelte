@@ -10,7 +10,14 @@
   import { cropImageToCanvas, canvasToJpegBlob } from '$lib/media/crop';
   import { encodeBlurHash } from '$lib/media/blurhash';
   import EventCard from '$components/EventCard.svelte';
-  
+  import TimelineContext from '$components/admin/TimelineContext.svelte';
+import { getLocalDB } from '$lib/db/client';
+import { events } from '$lib/db/schema';
+import { eq, and, ne } from 'drizzle-orm';
+  import CivicTimelineContext from '$components/admin/CivicTimelineContext.svelte';
+
+
+let otherEventsOnDate = $state<Array<{title: string; startTime: string; endTime: string}>>([]);
 
   const ASPECT = 16 / 9;
 
@@ -56,6 +63,61 @@ let preview = $derived({
     published: 0,
     featured: 0
   });
+
+  $effect(() => {
+  if (!form.event_date) {
+    otherEventsOnDate = [];
+    return;
+  }
+  const fetchOthers = async () => {
+    const db = await getLocalDB();
+    if (!db) return;
+    const rows = await db
+      .select({ title: events.title, date: events.date, time: events.time })
+      .from(events)
+      .where(
+        and(
+          eq(events.date, form.event_date),
+          ne(events.id, isNew ? -1 : parseInt(id!)) // exclude self
+        )
+      )
+      .all();
+
+    otherEventsOnDate = rows
+      .filter(r => r.time) // only events with a time
+      .map(r => {
+        // Assume time is start time; we need end time. If we don't have duration, we can assume 1 hour default.
+        // In the event schema, we don't have an end time field, only time. So we'll assume a default duration of 1 hour.
+        const startTime = r.time!;
+        const [h, m] = startTime.split(':').map(Number);
+        const endMinutes = h * 60 + m + 60;
+        const eh = Math.floor(endMinutes / 60) % 24;
+        const em = endMinutes % 60;
+        const endTime = `${eh.toString().padStart(2, '0')}:${em.toString().padStart(2, '0')}`;
+        return { title: r.title, startTime, endTime };
+      });
+  };
+
+  const rows = await db
+  .select({ title: events.title, date: events.date, time: events.time, category: events.category })
+  .from(events)
+  .where(and(eq(events.date, form.event_date), ne(events.id, isNew ? -1 : parseInt(id!))))
+  .all();
+otherEventsOnDate = rows
+  .filter(r => r.time && r.date === form.event_date)
+  .map(r => {
+    const start = r.time!;
+    const [h,m] = start.split(':').map(Number);
+    const endMin = h*60 + m + 60;
+    return {
+      title: r.title,
+      startTime: start,
+      endTime: `${Math.floor(endMin/60) % 24}:${(endMin%60).toString().padStart(2,'0')}`,
+      category: (r.category as any) ?? 'community'
+    };
+  });
+  fetchOthers();
+});
 
   onMount(async () => {
     if (isNew) {
@@ -394,4 +456,28 @@ let preview = $derived({
       </div>
     </form>
   {/if}
+
+  <!-- {#if form.event_date && form.event_time}
+  <TimelineContext
+    date={form.event_date}
+    startTime={form.event_time}
+    otherEvents={otherEventsOnDate}
+    endTime={/* we don't have an end time field yet, so derive it from start + 1h */}
+    endTime={(() => {
+      const [h, m] = form.event_time.split(':').map(Number);
+      const totalMin = h * 60 + m + 60;
+      const eh = Math.floor(totalMin / 60) % 24;
+      const em = totalMin % 60;
+      return `${eh.toString().padStart(2, '0')}:${em.toString().padStart(2, '0')}`;
+    })()}
+  />
+{/if} -->
+
+{#if form.event_date && form.event_time}
+  <CivicTimelineContext
+    date={form.event_date}
+    startTime={form.event_time}
+    otherEvents={otherEventsOnDate}
+  />
+{/if}
 </div>

@@ -8,6 +8,10 @@
   import ScheduleCalendar from '$components/ScheduleCalendar.svelte';
   import { resolve } from '$app/paths';
   import LivePulse from '$lib/components/LivePulse.svelte';
+ import CivicFeed from '$components/public/CivicFeed.svelte';
+  import VerticalTicker from '$components/public/VerticalTicker.svelte';
+
+
   let data = $props();
 
   let feed: any[] = $state([]);
@@ -72,4 +76,10 @@
     </div>
   {/if}
   <PassportStamp />
+  
+<!-- Vertical ticker with all upcoming events (could be filtered further for high-priority) -->
+<VerticalTicker items={feed.filter(e => e.date >= new Date().toISOString().slice(0,10))} />
+
+<!-- Main feed with calendar grouping -->
+<CivicFeed events={feed} />
 </div>

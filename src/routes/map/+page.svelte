@@ -100,8 +100,11 @@
     if (db) {
       const pois = await db.select().from(events).where(eq(events.type, 'poi')).all();
       pois.forEach((poi) => {
+        
         if (poi.lat && poi.lng) {
+          const isUrgent = (poi as any).category === 'emergency';
           const node = document.createElement('div');
+          node.className = 'marker-icon ' + (isUrgent ? 'marker-urgent' : '');
           const titleEl = document.createElement('strong');
           titleEl.textContent = poi.title;
           node.appendChild(titleEl);
@@ -111,7 +114,8 @@
             descEl.textContent = poi.description;
             node.appendChild(descEl);
           }
-          L.marker([parseFloat(poi.lat), parseFloat(poi.lng)])
+          const icon = L.divIcon({ html: node.outerHTML, className: 'custom-div-icon' });
+          L.marker([parseFloat(poi.lat), parseFloat(poi.lng)], { icon })
             .addTo(map)
             .bindPopup(node);
         }
