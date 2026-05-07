@@ -57,6 +57,7 @@ export const albums = sqliteTable('albums', {
   createdAt: integer('created_at'),
   updatedAt: integer('updated_at'),
   published: integer('published').default(1),
+  blurHash: text('blur_hash'),
 });
 
 export const albumPhotos = sqliteTable('album_photos', {

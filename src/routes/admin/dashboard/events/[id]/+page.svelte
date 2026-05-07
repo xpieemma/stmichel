@@ -8,6 +8,9 @@
   import { resolve } from '$app/paths';
   import { compressImage } from '$lib/media/compress';
   import { cropImageToCanvas, canvasToJpegBlob } from '$lib/media/crop';
+  import { encodeBlurHash } from '$lib/media/blurhash';
+  import EventCard from '$components/EventCard.svelte';
+  
 
   const ASPECT = 16 / 9;
 
@@ -27,6 +30,19 @@
   let cropping = $state(false);
   let cropCanvas = $state<HTMLCanvasElement | null>(null);
   let lastX = 0, lastY = 0;
+
+let blurHash = $state('');
+
+
+let preview = $derived({
+  title: form.title,
+  date: form.event_date,
+  time: form.event_time,
+  location: form.location,
+  description: form.description,
+  imageUrl: form.image_url,
+  blurHash: '' // optionally if we add blur hash state
+});
 
   let form = $state({
     id: 0,
@@ -194,16 +210,19 @@
     const croppedCanvas = cropImageToCanvas(img, sx, sy, cropW, cropH);
     const croppedBlob = await canvasToJpegBlob(croppedCanvas, 0.8);
     const crushedBlob = await compressImage(new File([croppedBlob], cropFile!.name, { type: 'image/jpeg' }));
-    
+    const hash = encodeBlurHash(croppedCanvas);
+    blurHash = hash;
+
     form.image_url = URL.createObjectURL(crushedBlob); 
   }
 
-  async function save() {
+  async function save(publishStatus?: number) {
     if (!form.title.trim()) { error = 'Tit la obligatwa'; return; }
     saving = true;
     error = '';
     try {
       const method = isNew ? 'POST' : 'PUT';
+       const published = publishStatus !== undefined ? publishStatus : (form.published ? 1 : 0);
       const payload = {
         id: isNew ? undefined : parseInt(id!, 10),
         title: form.title,
@@ -215,7 +234,8 @@
         type: form.category,
         published: form.published,
         lat: null, 
-        lng: null 
+        lng: null,
+        blur_hash: blurHash
       };
       
       const r = await fetch('/api/admin/events', {
@@ -244,6 +264,22 @@
     <a href={resolve("/admin/dashboard/events")} class="text-sm text-text-muted hover:underline">← Retounen</a>
     <h1 class="text-2xl font-bold mt-1">{isNew ? '🆕 Nouvo Evènman' : '✏️ Modifye Evènman'}</h1>
   </header>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <!-- Left: Form -->
+  <form onsubmit={(e) => { e.preventDefault(); save(); }} class="space-y-4">
+    <!-- all existing form fields exactly as before -->
+  </form>
+
+  <!-- Right: Preview (hidden on small screens? Or show below) -->
+  <aside class="hidden lg:block">
+    <div class="sticky top-4">
+      <h2 class="text-lg font-semibold mb-3">👁️ Apèsi Piblik</h2>
+      <EventCard {...preview} compact />
+      <p class="text-xs text-text-muted mt-2">Sa a se jan evènman an ap parèt pou itilizatè yo.</p>
+    </div>
+  </aside>
+</div>
 
   {#if loading}
     <p class="text-text-muted">Chajman...</p>
@@ -345,10 +381,14 @@
       {/if}
 
       <div class="flex gap-3 pt-4">
-        <button type="submit" disabled={saving}
-          class="bg-haiti-blue text-white px-6 py-3 rounded-full font-medium disabled:opacity-50">
-          {saving ? 'Sove...' : (isNew ? '✅ Kreye Evènman' : '💾 Sove Chanjman')}
-        </button>
+       <button type="button" onclick={() => save(0)} disabled={saving}
+    class="border border-border-light text-text-secondary px-6 py-3 rounded-full font-medium disabled:opacity-50">
+    {saving ? 'Sove...' : '💾 Sove kòm Bouyon'}
+  </button>
+  <button type="button" onclick={() => save(1)} disabled={saving}
+    class="bg-haiti-blue text-white px-6 py-3 rounded-full font-medium disabled:opacity-50">
+    {saving ? 'Sove...' : '✅ Pibliye'}
+  </button>
         <button type="button" onclick={() => goto(resolve('/admin/dashboard/events'))}
           class="border border-border-light px-6 py-3 rounded-full">Anile</button>
       </div>

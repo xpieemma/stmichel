@@ -6,7 +6,7 @@
 <button type="button" class="passport-widget" onclick={() => goto('/passport')}>
   <span class="icon">🛂</span>
   <div class="info">
-    <span class="label">Paspò Festival</span>
+    <span class="label">Digital</span>
     <div><span class="count">{$passportCount}</span><span class="badge">Kache</span></div>
   </div>
 </button>

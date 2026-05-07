@@ -8,16 +8,16 @@
   import { syncToServer } from '$lib/db/sync';
   import { resolve } from '$app/paths';
   import { compressImage } from '$lib/media/compress';
+  import ImageDropzone from '$components/admin/ImageDropzone.svelte';
 
+  const MAX_ORIGINAL_SIZE = 10 * 1024 * 1024; // 10 MB limit before compression
+  const ALLOWED_TYPES = ['image/jpeg', 'image/webp'];
 
-const MAX_ORIGINAL_SIZE = 10 * 1024 * 1024; // 10 MB limit before compression
-const ALLOWED_TYPES = ['image/jpeg', 'image/webp'];
-
-  let id = $page.params.id;
+  let id = $derived($page.params.id);
   let isNew = $derived(id === 'new');
   let form = $state({ title: '', description: '', coverImageUrl: '', published: 1 });
   let photos: any[] = $state([]);
-  let loading = $state(!$page.params.id || $page.params.id === 'new' ? false : true);
+  let loading = $state(id !== 'new');
 
   let fileInput: HTMLInputElement | null = $state(null);
   let uploading = $state(false);
@@ -28,56 +28,25 @@ const ALLOWED_TYPES = ['image/jpeg', 'image/webp'];
     await savePhotoToDatabase(url);
   }
 
-  async function handleFileUpload(e: Event) {
-    const target = e.target as HTMLInputElement;
-    const file = target.files?.[0];
-    if (!file) return;
 
-    if (!ALLOWED_TYPES.includes(file.type)) {
-    alert('Sèlman imaj JPG ak WebP yo aksepte. Pa gen PNG oswa lòt fòma.');
-    target.value = '';
-    return;
-  }
-
-  if (file.size > MAX_ORIGINAL_SIZE) {
-    alert('Fichye a twò gwo. Diminye gwosè a avan ou telechaje.');
-    target.value = '';
-    return;
-  }
-    // Client-side validation
-    if (!['image/jpeg', 'image/webp'].includes(file.type)) {
-      alert('Tanpri chwazi yon imaj JPG oswa WebP (Pa gen PNG).');
-      target.value = ''; // Reset input
-      return;
-    }
-
+  async function processUploadedFile(file: File) {
     uploading = true;
     try {
-
-      // 1. Compress the image before uploading
-    const compressedBlob = await compressImage(file);
-    // 2. Create a new File from the Blob with original name
-    const compressedFile = new File([compressedBlob], file.name, { type: 'image/jpeg' });
       const formData = new FormData();
-      formData.append('file', compressedFile);
+      formData.append('file', file);
 
-      // Send to our new R2 endpoint
       const r = await fetch('/api/admin/upload', { method: 'POST', body: formData });
       if (!r.ok) throw new Error((await r.json()).error || 'Echwe chaje imaj la');
-      
       const { url } = await r.json();
-      
-      // Once uploaded, save it to the DB just like the URL method!
       await savePhotoToDatabase(url);
-      
     } catch (err) {
       alert((err as Error).message);
     } finally {
       uploading = false;
-      target.value = ''; // Reset input so they can upload the same file again if needed
     }
   }
 
+  // Remove the old addPhotoFromUrl if you want, or keep it for URL method
   async function savePhotoToDatabase(imageUrl: string) {
     const caption = prompt('Deskripsyon (opsyonèl):') || '';
     try {
@@ -117,7 +86,6 @@ const ALLOWED_TYPES = ['image/jpeg', 'image/webp'];
         .values({ ...form, slug, createdAt: Math.floor(Date.now() / 1000), updatedAt: Math.floor(Date.now() / 1000) })
         .returning({ id: albums.id }).get();
       id = result.id.toString();
-      isNew = false;
       goto(resolve(`/admin/dashboard/albums/${id}`));
     } else {
       await db.update(albums)
@@ -174,26 +142,16 @@ const ALLOWED_TYPES = ['image/jpeg', 'image/webp'];
           <h2 class="text-xl font-semibold">📷 Foto yo ({photos.length})</h2>
           
           <div class="flex gap-2 items-center">
-            {#if uploading}
-              <span class="text-sm text-text-muted animate-pulse">Ap chaje...</span>
-            {:else}
-              <input 
-                type="file" 
-                accept="image/jpeg, image/webp" 
-                bind:this={fileInput} 
-                onchange={handleFileUpload} 
-                class="hidden" 
-              />
-              
-              <button onclick={() => fileInput.click()} class="bg-haiti-blue text-white px-4 py-1.5 rounded-full text-sm font-medium hover:opacity-90">
-                + Chaje Foto
-              </button>
-              
-              <button onclick={addPhotoFromUrl} class="border border-border-light text-text-secondary px-3 py-1.5 rounded-full text-sm hover:bg-smoke-white">
-                🔗 Mete URL
-              </button>
-            {/if}
-          </div>
+  {#if uploading}
+    <span class="text-sm text-text-muted animate-pulse">Ap chaje...</span>
+  {:else}
+    <ImageDropzone handleFile={processUploadedFile} />
+    
+    <button type="button" onclick={addPhotoFromUrl} class="border border-border-light text-text-secondary px-3 py-1.5 rounded-full text-sm hover:bg-smoke-white">
+      🔗 Mete URL
+    </button>
+  {/if}
+</div>
         </div>
 
         {#if photos.length}
