@@ -116,3 +116,6 @@ local.db-wal
 *.test.ts
 *.test.js
 tests/
+
+wrangler.toml
+wrangler.jsonc
