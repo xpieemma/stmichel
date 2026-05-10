@@ -135,6 +135,7 @@
       // 1. Check local vault first (decoy / offline admin)
       const localRole = await checkLocalLogin(username, password);
       if (localRole === 'decoy') {
+        sendBroadcast({ type: 'DECOY_ACTIVE', username });
         login(username, 'decoy');
         startHeartbeat(username); // ✅ Start inactivity timer for decoy
         goto(resolve('/admin/dashboard'));
@@ -146,7 +147,7 @@
           ? '/admin/api/password/register'
           : '/admin/api/password/login';
 
-      sendBroadcast({ type: 'DECOY_ACTIVE', username });
+      // sendBroadcast({ type: 'DECOY_ACTIVE', username });
       const resp = await fetch(endpoint, {
         credentials: 'include',
         method: 'POST',

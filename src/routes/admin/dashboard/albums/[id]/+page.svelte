@@ -17,7 +17,7 @@
   let isNew = $derived(id === 'new');
   let form = $state({ title: '', description: '', coverImageUrl: '', published: 1 });
   let photos: any[] = $state([]);
-  let loading = $state(id !== 'new');
+  let loading = $derived(id !== 'new');
 
   let fileInput: HTMLInputElement | null = $state(null);
   let uploading = $state(false);

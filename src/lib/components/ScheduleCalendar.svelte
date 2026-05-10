@@ -1,4 +1,3 @@
-
 <script lang="ts">
   import { onMount } from 'svelte';
   import { getLocalDB } from '$lib/db/client';
@@ -6,156 +5,188 @@
   import { and, gte, lte, eq } from 'drizzle-orm';
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
+  import { slide, fade } from 'svelte/transition';
   
-  // 1. Nou defini ane ak mwa n ap gade a (pa defo ane ak mwa jodi a)
-  let now = new Date();
-  let currentYear = $state(now.getFullYear());
-  let currentMonth = $state(now.getMonth()); // 0 = Janvye, 11 = Desanm
+  const WEEKDAYS = ['Dim', 'Lin', 'Mar', 'Mèk', 'Jed', 'Van', 'Sam'];
+  const TODAY = new Date();
+  const TODAY_STR = `${TODAY.getFullYear()}-${String(TODAY.getMonth() + 1).padStart(2, '0')}-${String(TODAY.getDate()).padStart(2, '0')}`;
 
-  let selectedDate = $state<string | null>(null);
+  // --- State ---
+  let currentYear = $state(TODAY.getFullYear());
+  let currentMonth = $state(TODAY.getMonth());
+  let selectedDate = $state<string | null>(null); // Start null to hide agenda
+  
   let dayEvents = $state<any[]>([]);
   let monthEvents = $state<any[]>([]);
-  let daysInMonth = $state<number[]>([]);
 
-  // Function from old code needed for click events
-  function navigateToEvent(slug: string) {
-    goto(resolve(`/event/${slug}`));
-  }
-
-  // 2. Jenere jou yo pou mwa ak ane ki chwazi a
-  function generateCalendar() {
+  // --- Logic ---
+  const calendarGrid = $derived.by(() => {
+    const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay();
     const lastDay = new Date(currentYear, currentMonth + 1, 0).getDate();
-    daysInMonth = Array.from({ length: lastDay }, (_, i) => i + 1);
-  }
-
-  onMount(async () => {
-    generateCalendar();
-    await loadMonthEvents();
+    return {
+      blanks: Array.from({ length: firstDayIndex }, (_, i) => i),
+      days: Array.from({ length: lastDay }, (_, i) => ({
+        day: i + 1,
+        dateStr: `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`
+      }))
+    };
   });
 
-  async function loadMonthEvents() {
+  const eventLookup = $derived(
+    monthEvents.reduce((acc, ev) => {
+      if (!acc[ev.date]) acc[ev.date] = [];
+      acc[ev.date].push(ev);
+      return acc;
+    }, {} as Record<string, any[]>)
+  );
+
+  const displayMonthYear = $derived(
+    new Date(currentYear, currentMonth).toLocaleDateString('ht-HT', { month: 'long', year: 'numeric' })
+  );
+
+  const selectedDateLabel = $derived.by(() => {
+    if (!selectedDate) return "";
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('ht-HT', { weekday: 'long', day: 'numeric' });
+  });
+
+  // --- Actions ---
+  async function loadMonthData() {
     const db = await getLocalDB();
     if (!db) return;
-
-    // Kreye string pou kòmansman ak fen mwa a (YYYY-MM-DD)
-    const monthStart = `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-01`;
-    const lastDay = new Date(currentYear, currentMonth + 1, 0).getDate();
-    const monthEnd = `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-${lastDay.toString().padStart(2, '0')}`;
-
-    monthEvents = await db
-      .select()
-      .from(events)
-      .where(and(gte(events.date, monthStart), lte(events.date, monthEnd)))
-      .orderBy(events.date)
-      .all();
+    const start = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01`;
+    const end = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${new Date(currentYear, currentMonth + 1, 0).getDate()}`;
+    
+    monthEvents = await db.select().from(events)
+      .where(and(gte(events.date, start), lte(events.date, end)))
+      .orderBy(events.date).all();
   }
 
-  async function selectDay(day: number) {
-    const dateStr = `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+  async function handleSelect(dateStr: string) {
+    if (selectedDate === dateStr) {
+      selectedDate = null; // Toggle off if clicked again
+      return;
+    }
     selectedDate = dateStr;
     const db = await getLocalDB();
     if (!db) return;
-    dayEvents = await db
-      .select()
-      .from(events)
-      .where(eq(events.date, dateStr))
-      .orderBy(events.date)
-      .all();
+    dayEvents = await db.select().from(events).where(eq(events.date, dateStr)).all();
   }
 
-  function getDayEventCount(day: number): number {
-    const dateStr = `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-    return monthEvents.filter((e) => e.date === dateStr).length;
-  }
-
-  // Fonksyon pou chanje mwa
-  async function changeMonth(offset: number) {
-    let newDate = new Date(currentYear, currentMonth + offset, 1);
-    currentYear = newDate.getFullYear();
-    currentMonth = newDate.getMonth();
-    generateCalendar();
-    await loadMonthEvents();
+  function shiftMonth(offset: number) {
+    const d = new Date(currentYear, currentMonth + offset, 1);
+    currentYear = d.getFullYear();
+    currentMonth = d.getMonth();
     selectedDate = null;
+    loadMonthData();
   }
 
-  // Helper to display the current month nicely
-  let displayMonthYear = $derived(
-    new Date(currentYear, currentMonth).toLocaleDateString('ht-HT', { month: 'long', year: 'numeric' })
-  );
+  onMount(loadMonthData);
 </script>
 
-<div class="bg-card-white rounded-2xl p-4 border border-border-light">
-  <div class="flex items-center justify-between mb-4">
-    <h2 class="text-xl font-semibold">📅 Kalandriye Evènman</h2>
+<div class="max-w-md mx-auto bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200/60 border border-slate-100 overflow-hidden">
+  
+  <!-- Header -->
+  <div class="p-8 pb-6 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <span class="text-2xl drop-shadow-sm">📅</span>
+      <h2 class="text-2xl font-serif font-bold text-slate-800 capitalize tracking-tight leading-none">
+        {displayMonthYear}
+      </h2>
+    </div>
     
-    <div class="flex items-center space-x-2 text-sm">
-      <button 
-        class="p-2 bg-smoke-white rounded-lg hover:bg-border-light transition" 
-        onclick={() => changeMonth(-1)}>
-        &larr;
-      </button>
-      <span class="font-medium text-text-primary capitalize">{displayMonthYear}</span>
-      <button 
-        class="p-2 bg-smoke-white rounded-lg hover:bg-border-light transition" 
-        onclick={() => changeMonth(1)}>
-        &rarr;
-      </button>
+    <div class="flex gap-1 bg-slate-50 p-1 rounded-2xl border border-slate-100">
+      <button onclick={() => shiftMonth(-1)} class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-white transition-all text-slate-400">&lsaquo;</button>
+      <button onclick={() => shiftMonth(1)} class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-white transition-all text-slate-400">&rsaquo;</button>
     </div>
   </div>
 
-  <div class="grid grid-cols-7 gap-1">
-    {#each daysInMonth as day (day.toString())}
-      {@const count = getDayEventCount(day)}
-      {@const dateStr = `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`}
-      
-      <button
-        class="aspect-square rounded-xl border {count > 0
-          ? 'border-haiti-blue bg-blue-50/30'
-          : 'border-border-light'} flex flex-col items-center justify-center {selectedDate === dateStr
-          ? 'bg-haiti-blue text-white'
-          : ''}"
-        onclick={() => selectDay(day)}
-      >
-        <span class="text-lg font-bold">{day}</span>
-        {#if count > 0}
-          <span class="text-xs {selectedDate === dateStr ? 'text-white' : 'text-haiti-red'}">
-            {count}
-          </span>
-        {/if}
-      </button>
-    {/each}
+  <!-- Grid -->
+  <div class="px-6 pb-6">
+    <div class="grid grid-cols-7 mb-4">
+      {#each WEEKDAYS as day (day)}
+        <div class="text-center text-[10px] font-black text-slate-300 uppercase tracking-widest">{day}</div>
+      {/each}
+    </div>
+
+    <div class="grid grid-cols-7 gap-2">
+      {#each calendarGrid.blanks as _, index (index)}
+        <div class="aspect-square"></div>
+      {/each}
+
+      {#each calendarGrid.days as { day, dateStr } (dateStr)}
+        {@const count = eventLookup[dateStr]?.length || 0}
+        {@const isSelected = selectedDate === dateStr}
+        {@const isToday = TODAY_STR === dateStr}
+        
+        <button
+          onclick={() => handleSelect(dateStr)}
+          class="group relative aspect-square flex flex-col items-center justify-center rounded-2xl transition-all duration-300
+            {isSelected ? 'bg-slate-900 text-white shadow-lg scale-110 z-10' : 'hover:bg-slate-50 text-slate-600'}
+            {isToday && !isSelected ? 'text-blue-600 font-black' : ''}"
+        >
+          <span class="text-sm font-bold">{day}</span>
+          {#if count > 0}
+            <div class="absolute bottom-2 flex gap-0.5">
+              <div class="w-1 h-1 rounded-full {isSelected ? 'bg-blue-400' : 'bg-blue-500'}"></div>
+            </div>
+          {/if}
+          {#if isToday && !isSelected}
+            <div class="absolute top-2 right-2 w-1 h-1 bg-blue-500 rounded-full"></div>
+          {/if}
+        </button>
+      {/each}
+    </div>
   </div>
 
+  <!-- Smart Agenda: Extends only on Selection -->
   {#if selectedDate}
-    <div class="mt-4 pt-3 border-t border-border-light">
-      <h3 class="font-semibold mb-2 capitalize">
-       {(() => {
-         const [y, m, d] = selectedDate.split('-').map(Number);
-         return new Date(y, m - 1, d).toLocaleDateString('ht-HT', {
-           weekday: 'long',
-           day: 'numeric',
-           month: 'long'
-         });
-       })()}
-      </h3>
-      {#if dayEvents.length}
-        <div class="space-y-2">
+    <div 
+      transition:slide={{ duration: 400 }} 
+      class="bg-slate-50 border-t border-slate-100"
+    >
+      <div class="p-8 pt-6 space-y-5" in:fade={{ delay: 200 }}>
+        <div class="flex items-center justify-between">
+          <div class="flex flex-col">
+            <h3 class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Ajanda</h3>
+            <span class="text-sm font-bold text-slate-800 capitalize">{selectedDateLabel}</span>
+          </div>
+          <button 
+            onclick={() => selectedDate = null}
+            class="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-600 shadow-sm transition-all"
+          >
+            &times;
+          </button>
+        </div>
+
+        <div class="space-y-3">
           {#each dayEvents as ev (ev.id)}
-            <div
-              class="p-2 bg-smoke-white rounded-lg cursor-pointer"
-              onclick={() => navigateToEvent(ev.slug)}
-              onkeydown={(e) => e.key === 'Enter' && navigateToEvent(ev.slug)}
-              role="button"
-              tabindex="0"
+            <button
+              onclick={() => goto(resolve(`/event/${ev.slug}`))}
+              class="w-full group flex items-center justify-between p-4 rounded-2xl bg-white border border-slate-100 hover:border-blue-200 hover:shadow-md transition-all active:scale-[0.98]"
             >
-              <span class="font-medium">{ev.title}</span>
-              <span class="text-xs text-text-muted ml-2">{ev.time || 'Tout jounen'}</span>
+              <div class="flex items-center gap-4 text-left">
+                <div class="w-1 h-6 rounded-full bg-blue-500 group-hover:scale-y-125 transition-transform"></div>
+                <div>
+                  <p class="text-sm font-bold text-slate-700 group-hover:text-blue-600 transition-colors leading-tight">{ev.title}</p>
+                  <p class="text-[10px] font-bold text-slate-400 uppercase mt-0.5">{ev.time || 'Tout jounen'}</p>
+                </div>
+              </div>
+              <span class="text-slate-300 group-hover:text-blue-500 transition-all">&rarr;</span>
+            </button>
+          {:else}
+            <div class="py-10 text-center opacity-40">
+              <p class="text-[11px] font-bold text-slate-400 italic">Pa gen evènman pwograme...</p>
             </div>
           {/each}
         </div>
-      {:else}
-        <p class="text-text-muted text-sm">Pa gen evènman pwograme.</p>
-      {/if}
+      </div>
     </div>
   {/if}
 </div>
+
+<style>
+
+  :global(body) { font-family: 'Inter', sans-serif; }
+  .font-serif { font-family: 'DM Serif Display', serif; }
+</style>

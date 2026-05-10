@@ -5,6 +5,7 @@
   import { cityInfo, events } from '$lib/db/schema';
   import { and, eq } from 'drizzle-orm';
   import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
  
 
  let zoomedImage = $state<string | null>(null);
@@ -94,7 +95,7 @@ type HistoryRecord = {
                 <button
                   type="button"
                   class="text-left bg-smoke-white hover:bg-border-light transition rounded-xl p-3 flex items-center gap-3"
-                  onclick={() => goto(`/history/${h.slug}`)}
+                  onclick={() => goto(resolve(`/history/${h.slug}`))}
                 >
                   {#if h.imageUrl}<img src={h.imageUrl} alt={h.title} class="w-12 h-12 rounded-lg object-cover shrink-0" />{/if}
                   <span class="font-medium text-text-primary">{h.title}</span>

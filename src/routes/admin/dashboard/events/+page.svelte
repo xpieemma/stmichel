@@ -1,4 +1,4 @@
-<script lang="ts">
+<!-- <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
@@ -185,4 +185,158 @@
       {/each}
     </div>
   {/if}
+</div> -->
+
+
+<script lang="ts">
+  import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
+  import { getLocalDB } from '$lib/db/client';
+  import { events } from '$lib/db/schema';
+  import { addToQueue } from '$lib/db/pending-sync';
+  import { eq, desc } from 'drizzle-orm';
+
+  // Using the exact shape from your schema
+  type EventRecord = typeof events.$inferSelect;
+
+  let eventList = $state<EventRecord[]>([]);
+  let loading = $state(true);
+
+  onMount(async () => {
+    // ⚡ INSTANT OFFLINE LOAD: Read straight from local SQLite
+    const db = await getLocalDB();
+    if (db) {
+      eventList = await db.select().from(events).orderBy(desc(events.createdAt)).all();
+    }
+    loading = false;
+  });
+
+  async function togglePublish(ev: EventRecord) {
+    const newVal = ev.published === 1 ? 0 : 1;
+    ev.published = newVal; // Optimistic UI update
+
+    const db = await getLocalDB();
+    if (db) {
+      // Update local DB
+      await db.update(events).set({ published: newVal }).where(eq(events.id, ev.id)).run();
+      // Queue for Cloudflare
+      await addToQueue('events', { id: ev.id, published: newVal });
+    }
+  }
+
+  async function duplicate(ev: EventRecord) {
+    const db = await getLocalDB();
+    if (!db) return;
+
+    const newEvent = {
+      ...ev,
+      id: undefined, // Let SQLite auto-increment
+      title: `(Kopi) ${ev.title}`,
+      slug: `kopi-${ev.slug}-${Date.now()}`,
+      published: 0,
+      createdAt: Math.floor(Date.now() / 1000)
+    };
+
+    // 1. Save to local SQLite
+    const result = await db.insert(events).values(newEvent).returning();
+    const savedLocalRecord = result[0];
+
+    // 2. Add to Sync Queue (Crucial: Send the local ID as offlineId!)
+    await addToQueue('events', { 
+      ...newEvent, 
+      offlineId: savedLocalRecord.id 
+    });
+
+    // 3. Update UI
+    eventList = [savedLocalRecord, ...eventList];
+  }
+
+  function formatDate(d: string | null) {
+    if (!d) return '—';
+    return new Date(d).toLocaleDateString('fr-HT', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+</script>
+
+<svelte:head><title>Evènman | Admin</title></svelte:head>
+
+<!-- 🔥 WOW COLOR APPLIED: The whole container bathes in smoke-white -->
+<div class="min-h-screen bg-smoke-white p-4 pb-20 pt-8">
+  <div class="mx-auto max-w-5xl">
+    
+    <header class="mb-8 flex items-center justify-between">
+      <div>
+        <a href={resolve("/admin/dashboard")} class="text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors">← Dashboard</a>
+        <h1 class="mt-2 text-3xl font-black tracking-tight text-slate-900">🎉 Jere Evènman</h1>
+      </div>
+      <button
+        onclick={() => goto(resolve('/admin/dashboard/events/new'))}
+        class="rounded-full bg-slate-900 px-6 py-2.5 text-sm font-bold text-white shadow-md transition-transform hover:scale-105 hover:bg-slate-800 active:scale-95"
+      >+ Nouvo Evènman</button>
+    </header>
+
+    {#if loading}
+      <div class="flex h-40 items-center justify-center rounded-[2rem] border-2 border-dashed border-slate-200 bg-white/50">
+        <p class="animate-pulse font-medium text-slate-400">Chajman baz done lokal...</p>
+      </div>
+    {:else if eventList.length === 0}
+      <div class="flex flex-col items-center justify-center rounded-[2rem] border border-slate-200 bg-white py-20 text-center shadow-sm">
+        <span class="mb-4 text-5xl">🎉</span>
+        <h3 class="font-serif text-xl font-bold text-slate-800">Pa gen evènman ankò</h3>
+        <p class="mt-1 text-sm text-slate-500">Kòmanse bati kalandriye a kounye a.</p>
+        <button onclick={() => goto(resolve('/admin/dashboard/events/new'))}
+          class="mt-6 rounded-full bg-slate-900 px-8 py-3 text-sm font-bold text-white shadow hover:opacity-90">Kreye Premye a</button>
+      </div>
+    {:else}
+      <div class="space-y-4">
+        {#each eventList as ev (ev.id)}
+          <!-- CARDS FLOAT ON SMOKE WHITE -->
+          <div class="group flex flex-col gap-4 rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm transition-all hover:-translate-y-1 hover:shadow-md sm:flex-row sm:items-center">
+            
+            {#if ev.imageUrl}
+              <img src={ev.imageUrl} alt="" class="h-20 w-20 shrink-0 rounded-[1rem] object-cover border border-slate-100" />
+            {:else}
+              <div class="flex h-20 w-20 shrink-0 items-center justify-center rounded-[1rem] bg-smoke-white text-3xl border border-slate-100">🎉</div>
+            {/if}
+
+            <div class="min-w-0 flex-1">
+              <div class="mb-1 flex items-center gap-3">
+                <h3 class="truncate font-serif text-xl font-bold text-slate-900">{ev.title}</h3>
+                <span class="rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider {ev.published === 1 ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'}">
+                  {ev.published === 1 ? 'Pibliye' : 'Bouyon'}
+                </span>
+              </div>
+              
+              <p class="mb-3 font-sans text-xs font-medium text-slate-500">
+                📅 {formatDate(ev.date)}
+                {#if ev.time} <span class="mx-1.5 text-slate-300">•</span> 🕐 {ev.time}{/if}
+                {#if ev.location} <span class="mx-1.5 text-slate-300">•</span> 📍 {ev.location}{/if}
+              </p>
+            </div>
+
+            <!-- ACTIONS -->
+            <div class="flex shrink-0 flex-wrap items-center gap-2 border-t border-slate-100 pt-3 sm:border-t-0 sm:pt-0">
+              <button onclick={() => togglePublish(ev)}
+                class="rounded-full border px-4 py-2 text-xs font-bold transition-colors {ev.published === 1 ? 'border-slate-200 text-slate-600 hover:bg-smoke-white' : 'border-green-200 text-green-700 hover:bg-green-50'}"
+              >
+                {ev.published === 1 ? 'Mete an Bouyon' : 'Pibliye'}
+              </button>
+              
+              <button onclick={() => goto(resolve(`/admin/dashboard/events/${ev.id}`))}
+                class="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 transition-colors hover:bg-smoke-white"
+              >
+                Modifye
+              </button>
+              
+              <button onclick={() => duplicate(ev)}
+                class="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 transition-colors hover:bg-smoke-white hover:text-blue-600"
+              >
+                Kopi
+              </button>
+            </div>
+          </div>
+        {/each}
+      </div>
+    {/if}
+  </div>
 </div>

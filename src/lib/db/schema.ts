@@ -1,4 +1,6 @@
+
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+
 
 export const events = sqliteTable('events', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -111,10 +113,19 @@ export const feedback = sqliteTable('feedback', {
   createdAt: integer('created_at'),
 });
 
+export const activityFeed = sqliteTable('activity_feed', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  type: text('type').notNull(),    // e.g., 'event_created'
+  message: text('description'),       // This is the column your app is looking for!
+  metadata: text('metadata'),      // For JSON strings
+  createdAt: integer('created_at').default(0),
+});
+
 export const pendingSync = sqliteTable('pending_sync', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   type: text('type').notNull(),
   payload: text('payload').notNull(),
+
   createdAt: integer('created_at'),
   attempts: integer('attempts').default(0),
   lastAttempt: integer('last_attempt'),

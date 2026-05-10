@@ -17,5 +17,3 @@ preview_id = "local"      # optional
 [[r2_buckets]]
 binding = "R2"
 bucket_name = "st-michel-bucket"
-
-

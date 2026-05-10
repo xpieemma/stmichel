@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from '$app/stores';
+  import { resolve } from '$app/paths';
 </script>
 
 <svelte:head>
@@ -14,7 +15,7 @@
       {$page.error?.message || 'Yon pwoblèm ki pa atandi rive.'}
     </p>
     <a
-      href="/"
+      href={resolve("/")}
       class="inline-block bg-haiti-blue text-white px-6 py-3 rounded-full font-medium no-underline"
     >🏠 Tounen lakay</a>
   </div>

@@ -1,110 +1,81 @@
-<!-- <script lang="ts">
-  let { feedItems = [] } = $props();
-  
-  // Simulated dynamic feed for the "Circle" effect
-  let displayItems = $derived([...feedItems, ...feedItems]); // Duplicate for seamless looping
-</script>
 
-<div class="relative overflow-hidden bg-haiti-red py-3 border-y border-white/10 shadow-lg">
-  <div class="absolute left-0 top-0 bottom-0 z-10 bg-haiti-red px-4 flex items-center shadow-r-xl">
-    <span class="flex h-2 w-2 mr-2">
-      <span class="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-haiti-blue opacity-75"></span>
-      <span class="relative inline-flex rounded-full h-2 w-2 bg-haiti-blue"></span>
-    </span>
-    <span class="text-[10px] font-black uppercase tracking-tighter text-white">Live Pulse</span>
-  </div>
-
-  <div class="flex whitespace-nowrap animate-marquee hover:pause">
-    {#each displayItems as item (item.id)}
-      <div class="inline-flex items-center mx-8 gap-3">
-        <div class="h-8 w-8 rounded-full bg-white/20 flex items-center justify-center text-lg border border-white/30">
-          {item.avatar || '🔥'}
-        </div>
-        <div class="flex flex-col">
-          <span class="text-xs font-bold text-white leading-none">
-             {item.user_name || 'Anonyme'} 
-             <span class="font-normal text-white/60 ml-1">{item.msg}</span>
-          </span>
-          <span class="text-[9px] uppercase font-bold text-haiti-red/80">{item.time}</span>
-        </div>
-      </div>
-    {/each}
-  </div>
-</div>
-
-<style>
-  @keyframes marquee {
-    0% { transform: translateX(0); }
-    100% { transform: translateX(-50%); }
-  }
-  .animate-marquee {
-    display: inline-flex;
-    animation: marquee 30s linear infinite;
-  }
- .marquee-content:hover {
-    animation-play-state: paused;
-    cursor: pointer;
-  }
-</style> -->
 
 
 <script lang="ts">
-  // 1. Accept feedItems from the parent
   let { feedItems = [] } = $props();
   
-  // 2. Fallback: If the DB is empty, show a welcoming message
   let items = $derived(feedItems.length > 0 
     ? feedItems 
-    : [{ id: 'f1', msg: "Byenveni  Sen Michèl! 🌴", user_name: "VIBE", avatar: "🎉" },
-      { id: 'f2', msg: "Bon fèt St Michel! 🌴", user_name: "888", avatar: "💕" }
-    ]
+    : [
+        { id: 'f1', msg: "Byenveni Sen Michèl! 🌴", user_name: "VIBE", avatar: "🎉" },
+        { id: 'f2', msg: "Bonjou nan bouk! 🌴", user_name: "888", avatar: "💕" },
+        { id: 'f3', msg: "Nap boule! 🔥", user_name: "STAFF", avatar: "🛡️" }
+      ]
   );
 
-  // 3. Duplicate for the infinite loop effect
-  let displayItems = $derived([...items.map(it => ({ ...it, uniqueKey: `${it.id}-a` })),
-  ...items.map(it => ({ ...it, uniqueKey: `${it.id}-b` }))]);
+  // Seamless duplication
+  let displayItems = $derived([
+    ...items.map(it => ({ ...it, uniqueKey: `${it.id}-a` })),
+    ...items.map(it => ({ ...it, uniqueKey: `${it.id}-b` }))
+  ]);
 </script>
 
-<div class="mx-4 mt-2 relative overflow-hidden bg-haiti-red py-3 rounded-l-full border border-white/20 shadow-lg min-h-[50px]">
+<div class="relative mx-4 mt-4 overflow-hidden rounded-full border border-white/20 bg-red-600 py-3 shadow-xl shadow-red-900/30">
   
-  <div class="absolute left-0 top-0 bottom-0 z-10 bg-haiti-red px-4 flex items-center shadow-[10px_0_15px_rgba(0,0,0,0.2)]">
-    <span class="flex h-2 w-2 mr-2">
-      <span class="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-haiti-blue opacity-75"></span>
-      <span class="relative inline-flex rounded-full h-2 w-2 bg-haiti-blue"></span>
-    </span>
-    <span class="text-[10px] font-black uppercase tracking-tighter text-white">Live Pulse</span>
+  <!-- Fixed Badge -->
+  <div class="absolute left-0 top-0 bottom-0 z-20 flex items-center bg-red-600 pl-5 pr-10 [mask-image:linear-gradient(to_right,black_70%,transparent)]">
+    <div class="mr-2 flex h-2 w-2 items-center justify-center">
+      <span class="absolute inline-flex h-3 w-3 animate-ping rounded-full bg-blue-400 opacity-75"></span>
+      <span class="relative inline-flex h-2 w-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(56,189,248,0.8)]"></span>
+    </div>
+    <span class="font-sans text-[10px] font-black uppercase tracking-[0.2em] text-white whitespace-nowrap">Live Pulse</span>
   </div>
 
-  <div class="flex whitespace-nowrap marquee-content">
-    {#each displayItems as item (item.uniqueKey)}
-      <div class="inline-flex items-center mx-8 gap-3">
-        <div class="h-8 w-8 rounded-full bg-white/20 flex items-center justify-center text-lg border border-white/30">
-          {item.avatar || '🔥'}
+  <!-- THE MOVEMENT -->
+  <div class="marquee-container flex whitespace-nowrap">
+    <div class="marquee-content flex items-center gap-12 pl-[140px]">
+      {#each displayItems as item (item.uniqueKey)}
+        <div class="group flex items-center gap-3 transition-transform active:scale-95 cursor-pointer">
+          <div class="flex h-9 w-9 items-center justify-center rounded-full border border-white/30 bg-white/10 text-lg shadow-inner">
+            {item.avatar || '🔥'}
+          </div>
+          <div class="flex flex-col leading-none">
+            <div class="flex items-baseline gap-1.5">
+              <span class="font-serif text-[14px] font-bold text-white tracking-wide">{item.user_name}</span>
+              <span class="font-sans text-[12px] font-medium text-white/90">{item.msg}</span>
+            </div>
+          </div>
         </div>
-        <div class="flex flex-col">
-          <span class="text-xs font-bold text-white leading-none">
-             {item.user_name || 'Anonyme'} 
-             <span class="font-normal text-white/80 ml-1">{item.msg}</span>
-          </span>
-        </div>
-      </div>
-    {/each}
+      {/each}
+    </div>
   </div>
 </div>
 
 <style>
-  @keyframes marquee {
-    0% { transform: translateX(0); }
-    100% { transform: translateX(-50%); }
+
+
+  .font-serif { font-family: 'DM Serif Display', serif; }
+  .font-sans { font-family: 'Inter', sans-serif; }
+
+  /* Guaranteed Movement Logic */
+  .marquee-container {
+    width: 100%;
+    display: flex;
+    overflow: hidden;
   }
 
   .marquee-content {
-    display: inline-flex;
-    animation: marquee 19s linear infinite;
-    padding-left: 100px;
+    display: flex;
+    white-space: nowrap;
+    animation: scroll 20s linear infinite;
   }
+
   .marquee-content:hover {
     animation-play-state: paused;
-    cursor: pointer;
+  }
+
+  @keyframes scroll {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
   }
 </style>

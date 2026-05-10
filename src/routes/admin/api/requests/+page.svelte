@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { resolve } from '$app/paths';
 
   type AdminRequest = {
     id: number;
@@ -24,7 +25,7 @@
     try {
       const r = await fetch('/admin/api/requests');
       if (!r.ok) throw new Error('Failed to load');
-      const data = await r.json();
+      const data: { requests: AdminRequest[] } = await r.json();
       requests = data.requests;
     } catch (e) {
       error = (e as Error).message;
@@ -46,8 +47,8 @@
         body: JSON.stringify({ id, action, reason })
       });
       if (!r.ok) {
-        const body = await r.json().catch(() => ({}));
-        alert(body.error || 'Erè');
+        const body: unknown = await r.json().catch(() => ({}));
+        alert((body as { error: string }).error || 'Erè');
         return;
       }
       // Reload list
@@ -80,7 +81,7 @@
 <div class="p-6 max-w-5xl mx-auto">
   <div class="flex items-center justify-between mb-6">
     <h1 class="text-2xl font-bold">📋 Demann Aksè Admin</h1>
-    <a href="/admin/dashboard" class="text-haiti-blue underline text-sm">← Retounen Dashboard</a>
+    <a href={resolve("/admin/dashboard")} class="text-haiti-blue underline text-sm">← Retounen Dashboard</a>
   </div>
 
   {#if loading}

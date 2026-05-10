@@ -1,3 +1,5 @@
+
+
 import { drizzle } from 'drizzle-orm/sqlite-proxy';
 import * as schema from './schema';
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
@@ -8,19 +10,7 @@ let initPromise: Promise<SqliteRemoteDatabase<typeof schema> | null> | null = nu
 
 /**
  * Initialize the local OPFS-backed SQLite database via sqlite-wasm's
- * Worker1 promiser. This is the only API in @sqlite.org/sqlite-wasm
- * that allows OPFS persistence — synchronous APIs like
- * sqlite3.oo1.OpfsDb only work inside a dedicated worker, and the
- * top-level `opfsOpen` does not exist.
- *
- * Cured for:
- *   - Race conditions: a single in-flight init promise is reused.
- *   - Multi-tab corruption: navigator.locks ensures only one tab
- *     holds the OPFS file at a time. The lock is held for the
- *     lifetime of the tab; subsequent tabs degrade gracefully.
- *   - Silent failures: errors are surfaced both to the console with
- *     diagnostic context AND as a 'db-locked' window event so the UI
- *     can show a user-visible warning.
+ * Worker1 promiser.
  */
 export async function initLocalDB() {
   if (!browser) return null;
@@ -32,37 +22,27 @@ export async function initLocalDB() {
       const doInit = async () => {
         const { sqlite3Worker1Promiser } = await import('@sqlite.org/sqlite-wasm');
 
-        // Create the worker-backed promiser. The library spawns a
-        // dedicated worker internally and exposes a Promise-returning
-        // `promiser(method, args)` interface.
         const promiser = await new Promise<any>((resolve) => {
-  const _p = (sqlite3Worker1Promiser as any)({
-    locateFile: (file: string) => {
-      if (file.endsWith('.wasm')) {
-        return '/sqlite3.wasm'; // served from static/
-      }
-      return file;
-    },
-    onready: () => resolve(_p),
-  });
-});
+          const _p = (sqlite3Worker1Promiser as any)({
+            locateFile: (file: string) => {
+              if (file.endsWith('.wasm')) {
+                return '/sqlite3.wasm'; // served from static/
+              }
+              return file;
+            },
+            onready: () => resolve(_p),
+          });
+        });
 
-        // Open the persistent OPFS database. The vfs=opfs query
-        // string is what tells sqlite-wasm to use OPFS storage
-        // rather than the transient in-memory VFS.
         const openResp = await promiser('open', {
           filename: 'file:festival.db?vfs=opfs',
         });
         const dbId = openResp.dbId;
 
-        // Tiny exec helper used by the schema-evolution code below.
-        // Mirrors the sqlite3.oo1 db.exec() call shape so the helper
-        // we wrote previously keeps working.
         const exec = async (sqlOrOpts: any) => {
           if (typeof sqlOrOpts === 'string') {
             return promiser('exec', { dbId, sql: sqlOrOpts });
           }
-          // Object form: { sql, bind?, rowMode?, callback? }
           if (sqlOrOpts.callback) {
             const cb = sqlOrOpts.callback;
             const rowMode = sqlOrOpts.rowMode || 'array';
@@ -103,14 +83,10 @@ export async function initLocalDB() {
           }
         }, { schema });
 
-        // Wrap exec as a synchronous-looking facade for createTables.
-        // (createTables awaits each call, so async exec is fine.)
         await createTables({ exec });
         return db;
       };
 
-      // Web Locks API: one tab gets the lock, others fail fast and
-      // get a clear UI signal instead of a corrupted database.
       if (typeof navigator !== 'undefined' && 'locks' in navigator) {
         return await new Promise<SqliteRemoteDatabase<typeof schema> | null>((resolve, reject) => {
           navigator.locks
@@ -124,7 +100,6 @@ export async function initLocalDB() {
               try {
                 const db = await doInit();
                 resolve(db);
-                // Hold the lock for the tab's lifetime.
                 await new Promise(() => {});
               } catch (err) {
                 reject(err);
@@ -150,17 +125,15 @@ export async function initLocalDB() {
 
   const result = await initPromise;
   dbInstance = result;
-  // Reset the in-flight promise so a future getLocalDB() call can
-  // retry if init failed (returned null).
   if (!result) initPromise = null;
   return result;
 }
 
 async function createTables(db: { exec: (sqlOrOpts: any) => Promise<any> }) {
-  // Initial schema (no-op if tables exist).
+  // ✅ FIXED: Added 'category TEXT' back into the events table so it matches schema.ts!
   await db.exec(`
-    CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT UNIQUE, title TEXT, description TEXT, date TEXT, time TEXT, location TEXT, lat TEXT, lng TEXT, image_url TEXT, blur_hash TEXT, type TEXT DEFAULT 'event', category TEXT DEFAULT 'community', created_at INTEGER, updated_at INTEGER, published INTEGER DEFAULT 1, version INTEGER DEFAULT 1);
-    CREATE TABLE IF NOT EXISTS matches (id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT UNIQUE, home_team TEXT, away_team TEXT, match_date TEXT, match_time TEXT, location TEXT, description TEXT,  home_score INTEGER, away_score INTEGER, status TEXT DEFAULT 'upcoming', cover_image_url TEXT, created_at INTEGER, updated_at INTEGER, published INTEGER DEFAULT 1, version INTEGER DEFAULT 1);
+    CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT UNIQUE, title TEXT, description TEXT, date TEXT, time TEXT, location TEXT, lat TEXT, lng TEXT, category TEXT, image_url TEXT, blur_hash TEXT, type TEXT DEFAULT 'event', created_at INTEGER, updated_at INTEGER, published INTEGER DEFAULT 1, version INTEGER DEFAULT 1);
+    CREATE TABLE IF NOT EXISTS matches (id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT UNIQUE, home_team TEXT, away_team TEXT, match_date TEXT, match_time TEXT, location TEXT, description TEXT, home_score INTEGER, away_score INTEGER, status TEXT DEFAULT 'upcoming', cover_image_url TEXT, created_at INTEGER, updated_at INTEGER, published INTEGER DEFAULT 1, version INTEGER DEFAULT 1);
     CREATE TABLE IF NOT EXISTS match_photos (id INTEGER PRIMARY KEY AUTOINCREMENT, match_id INTEGER, image_url TEXT, blur_hash TEXT, caption TEXT, sort_order INTEGER DEFAULT 0, created_at INTEGER);
     CREATE TABLE IF NOT EXISTS albums (id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT UNIQUE, title TEXT, description TEXT, cover_image_url TEXT, blur_hash TEXT, created_at INTEGER, updated_at INTEGER, published INTEGER DEFAULT 1);
     CREATE TABLE IF NOT EXISTS album_photos (id INTEGER PRIMARY KEY AUTOINCREMENT, album_id INTEGER, image_url TEXT, blur_hash TEXT, caption TEXT, sort_order INTEGER DEFAULT 0, created_at INTEGER);
@@ -170,8 +143,6 @@ async function createTables(db: { exec: (sqlOrOpts: any) => Promise<any> }) {
     CREATE TABLE IF NOT EXISTS feedback (id INTEGER PRIMARY KEY AUTOINCREMENT, event_id INTEGER, event_title TEXT, rating INTEGER, comment TEXT, created_at INTEGER);
   `);
 
-  // Schema evolution: add `nonce` to `stamps` for users whose OPFS DB
-  // was created before the idempotency cure shipped.
   let hasNonce = false;
   await db.exec({
     sql: 'PRAGMA table_info(stamps)',

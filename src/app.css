@@ -1,57 +1,86 @@
-/* @import 'tailwindcss/base';
-@import 'tailwindcss/components';
-@import 'tailwindcss/utilities'; */
-
 @import 'tailwindcss';
 
 @theme {
-  --color-smoke-white: #F5F5F5;
-  --color-haiti-blue: #00209F;
-  --color-haiti-red: #D21034;
-  --color-text-primary: #1E1E1E;
-  --color-text-secondary: #555555;
-  --color-text-muted: #7A7A7A;
-  --color-bg-card: #FFFFFF;
-  --color-border-light: rgba(0, 0, 0, 0.04);
+	/* Brand Colors */
+	--color-smoke-white: #f8fafc; /* Slightly cooler/cleaner white */
+	--color-haiti-blue: #00209f;
+	--color-haiti-red: #d21034;
+
+	/* Deep Editorial Text Colors (Slate palette for higher contrast) */
+	--color-text-primary: #0f172a;
+	--color-text-secondary: #475569;
+	--color-text-muted: #94a3b8;
+
+	/* Interface */
+	--color-bg-card: #ffffff;
+	--color-border-light: rgba(226, 232, 240, 0.8);
+
+	/* Typography Setup */
+	--font-sans: 'Inter', sans-serif;
+	--font-serif: 'DM Serif Display', serif;
+
+	/* Premium Glass/Editorial Shadows */
+	--shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.02);
+	--shadow-md: 0 8px 20px rgba(0, 0, 0, 0.04);
+	--shadow-card: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
+
+	/* Animations integrated into Tailwind */
+	--animate-civic-pulse: civic-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+
+	@keyframes civic-pulse {
+		0% {
+			transform: scale(0.95);
+			box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7);
+		}
+		70% {
+			transform: scale(1);
+			box-shadow: 0 0 0 15px rgba(220, 38, 38, 0);
+		}
+		100% {
+			transform: scale(0.95);
+			box-shadow: 0 0 0 0 rgba(220, 38, 38, 0);
+		}
+	}
 }
 
-@keyframes civic-pulse {
-  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
-  70% { transform: scale(1); box-shadow: 0 0 0 15px rgba(220, 38, 38, 0); }
-  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+/* Fix for the View Transition crash */
+.page-container {
+	view-transition-name: page-container;
 }
 
-.app-container {
-  view-transition-name: root;
-}
-
+/* The Urgent Marker */
 .marker-urgent::after {
-  content: '';
-  display: block;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: rgba(220, 38, 38, 0.5);
-  position: absolute;
-  top: -4px;
-  left: -4px;
-  animation: civic-pulse 2s infinite;
+	content: '';
+	display: block;
+	width: 16px;
+	height: 16px;
+	border-radius: 50%;
+	background: rgba(220, 38, 38, 0.5);
+	position: absolute;
+	top: -4px;
+	left: -4px;
+	/* Now utilizing the Tailwind variable we just created */
+	animation: var(--animate-civic-pulse);
 }
 
 @layer base {
-  :root {
-    --bg-primary: #F5F5F5;
-    --bg-card: #FFFFFF;
-    --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.02);
-    --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.03);
-  }
+	body {
+		/* Apply base text color, font, and rendering improvements */
+		@apply bg-smoke-white text-text-primary selection:bg-haiti-blue font-sans antialiased selection:text-white;
 
- 
-  body {
-    @apply bg-smoke-white text-text-primary font-sans antialiased;
-    background-image: 
-      radial-gradient(circle at 20% 30%, rgba(0, 32, 159, 0.012) 0%, transparent 25%),
-      radial-gradient(circle at 80% 70%, rgba(210, 16, 52, 0.008) 0%, transparent 30%),
-      repeating-linear-gradient(45deg, rgba(0,0,0,0.005) 0px, rgba(0,0,0,0.005) 1px, transparent 1px, transparent 20px);
-  }
+		/* The beautiful premium texture you created */
+		background-image:
+			radial-gradient(circle at 20% 30%, rgba(0, 32, 159, 0.015) 0%, transparent 25%),
+			radial-gradient(circle at 80% 70%, rgba(210, 16, 52, 0.015) 0%, transparent 30%),
+			repeating-linear-gradient(
+				45deg,
+				rgba(0, 0, 0, 0.005) 0px,
+				rgba(0, 0, 0, 0.005) 1px,
+				transparent 1px,
+				transparent 20px
+			);
+
+		/* Prevent scroll bounce on iOS to feel more like a native app */
+		overscroll-behavior-y: none;
+	}
 }

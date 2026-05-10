@@ -16,6 +16,7 @@ interface EventPayload {
   imageUrl?: string;
   type?: 'event' | 'poi' | 'history';
   published?: number;
+  offlineId?: string | number;
 }
 
 export const GET: RequestHandler = async ({ platform, cookies }) => {
@@ -55,7 +56,37 @@ export const POST: RequestHandler = async ({ request, platform, cookies }) => {
   const d1 = drizzle(db);
   const nowUnix = Math.floor(Date.now() / 1000);
 
+  
+
   try {
+
+
+if (data.offlineId) {
+      const slug = data.title!.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') + '-' + Date.now().toString(36);
+      
+     const insertedRow = await d1.insert(events).values({
+  slug,
+  title: data.title!,
+  description: data.description ?? '', 
+  date: data.date!,                    
+  time: data.time ?? '',
+  location: data.location ?? '',
+  lat: data.lat ?? null,
+  lng: data.lng ?? null,
+  imageUrl: data.imageUrl ?? '',
+  type: data.type ?? 'event',
+  published: data.published ?? 1,
+  createdAt: nowUnix,
+  updatedAt: nowUnix
+}).returning({ id: events.id });
+      
+      return json({ 
+        success: true, 
+        action: 'inserted',
+        realId: insertedRow[0].id,      // The official D1 ID
+        offlineId: data.offlineId       // Echo back the local SQLite ID
+      });
+    }
     if (data.id) {
       // ✅ Safely handle the ID whether it is a string or already a number
       const parsedId = typeof data.id === 'string' ? parseInt(data.id, 10) : data.id;

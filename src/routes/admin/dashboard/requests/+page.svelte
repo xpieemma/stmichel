@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { resolve } from '$app/paths';
 
   type AdminRequest = {
     id: number;
@@ -19,19 +20,26 @@
 
   onMount(loadRequests);
 
-  async function loadRequests() {
-    loading = true;
-    try {
-      const r = await fetch('/admin/api/requests');
-      if (!r.ok) throw new Error('Failed to load');
-      const data = await r.json();
-      requests = data.requests;
-    } catch (e) {
-      error = (e as Error).message;
-    } finally {
-      loading = false;
+ async function loadRequests() {
+  loading = true;
+  try {
+    const r = await fetch('/admin/api/requests');
+    
+    if (!r.ok) {
+      // ⚡️ Actually read the error the server just sent!
+      const errData = await r.json().catch(() => ({}));
+      throw new Error((errData as { error: string }).error || `Server error: ${r.status}`);
     }
+    
+    const data = await r.json();
+    requests = (data as { requests: AdminRequest[] }).requests || [];
+  } catch (e) {
+    // This puts the red error directly on your screen
+    error = (e as Error).message; 
+  } finally {
+    loading = false;
   }
+}
 
   async function handleAction(id: number, action: 'approve' | 'reject') {
     const reason = action === 'reject'
@@ -47,7 +55,7 @@
       });
       if (!r.ok) {
         const body = await r.json().catch(() => ({}));
-        alert(body.error || 'Erè');
+        alert((body as { error: string }).error || 'Erè');
         return;
       }
       // Reload list
@@ -80,7 +88,7 @@
 <div class="p-6 max-w-5xl mx-auto">
   <div class="flex items-center justify-between mb-6">
     <h1 class="text-2xl font-bold">📋 Demann Aksè Admin</h1>
-    <a href="/admin/dashboard" class="text-haiti-blue underline text-sm">← Retounen Dashboard</a>
+    <a href={resolve("/admin/dashboard")} class="text-haiti-blue underline text-sm">← Retounen Dashboard</a>
   </div>
 
   {#if loading}

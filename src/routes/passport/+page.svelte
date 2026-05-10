@@ -4,6 +4,7 @@
   import { stamps, events } from '$lib/db/schema';
   import { and, eq, inArray } from 'drizzle-orm';
   import { passportCount } from '$lib/stores/passport';
+  import { resolve } from '$app/paths';
 
   let collected = $state<any[]>([]);
   let total = $state(0);
@@ -58,11 +59,11 @@
   {:else if collected.length === 0}
     <div class="text-center py-12 text-text-muted">
       <p>Okenn kache ankò.</p>
-      <a href="/" class="inline-block mt-4 px-6 py-2 bg-card-white border border-haiti-blue text-haiti-blue rounded-full font-medium">🏠 Ale nan paj prensipal</a>
+      <a href={resolve("/")} class="inline-block mt-4 px-6 py-2 bg-card-white border border-haiti-blue text-haiti-blue rounded-full font-medium">🏠 Ale nan paj prensipal</a>
     </div>
   {:else}
     <div class="grid grid-cols-2 gap-3">
-      {#each collected as stamp}
+      {#each collected as stamp (stamp.id)}
         <div class="bg-card-white rounded-xl overflow-hidden border border-border-light">
           {#if stamp.imageUrl}<img src={stamp.imageUrl} alt={stamp.title} class="w-full h-28 object-cover" />{/if}
           <div class="p-3">

@@ -41,8 +41,8 @@
     <h1 class="text-2xl font-semibold mb-3">{event.title}</h1>
     <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mb-4 text-text-secondary">
       <span class="flex items-center gap-1"><span class="w-1 h-4 bg-haiti-blue rounded-full"></span>📅 {event.date ? new Date(event.date).toLocaleDateString('ht-HT') : 'Dat pa presize' }</span>
-      {#if event.time}<span>🕒 {event.time}</span>{/if}
-      {#if event.location}<span>📍 {event.location}</span>{/if}
+      {#if 'time' in event && event.time}<span>🕒 {event.time}</span>{/if}
+      {#if 'location' in event && event.location}<span>📍 {event.location}</span>{/if}
     </div>
     <div class="prose text-text-secondary mb-6">{event.description}</div>
     <div class="flex flex-wrap items-center gap-3 pt-4 border-t border-border-light">
