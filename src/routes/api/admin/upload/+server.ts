@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
-import { R2_PUBLIC_URL } from '$env/static/private';
+import { R2_PUBLIC_URL } from '$env/dynamic/private';
 
 export const POST: RequestHandler = async ({ request, platform, cookies }) => {
   // 1. Security Check
