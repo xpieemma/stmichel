@@ -139,7 +139,6 @@ The test suite runs entirely without a browser or Playwright – Vitest mocks th
 
 ## 🗺️ Offline Map Tiles  
 
-
 ```bash
 pnpm tiles:download    # ~40 MB, OSM tiles for zoom 13–16 around St Michel
 ```
